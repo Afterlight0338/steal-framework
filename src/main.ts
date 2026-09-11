@@ -28,6 +28,7 @@ const statAr = document.getElementById('stat-ar') as HTMLElement;
 const statObjs = document.getElementById('stat-objs') as HTMLElement;
 const statLen = document.getElementById('stat-len') as HTMLElement;
 const audioPreview = document.getElementById('audio-preview') as HTMLAudioElement;
+const targetWebplayerLink = document.getElementById('target-webplayer-link') as HTMLAnchorElement;
 
 const overallVerdictPill = document.getElementById('overall-verdict-pill') as HTMLElement;
 const candidateList = document.getElementById('candidate-list') as HTMLElement;
@@ -36,6 +37,8 @@ const candidateList = document.getElementById('candidate-list') as HTMLElement;
 const inspectorModal = document.getElementById('inspector-modal') as HTMLElement;
 const btnCloseModal = document.getElementById('btn-close-modal') as HTMLButtonElement;
 const modalTitle = document.getElementById('modal-title') as HTMLElement;
+const modalWebplayerTarget = document.getElementById('modal-webplayer-target') as HTMLAnchorElement;
+const modalWebplayerCand = document.getElementById('modal-webplayer-cand') as HTMLAnchorElement;
 const playfieldCanvas = document.getElementById('playfield-canvas') as HTMLCanvasElement;
 const timelineSlider = document.getElementById('timeline-slider') as HTMLInputElement;
 const timeDisplay = document.getElementById('time-display') as HTMLElement;
@@ -43,6 +46,8 @@ const btnPlayToggle = document.getElementById('btn-play-toggle') as HTMLButtonEl
 const btnSpeed05 = document.getElementById('btn-speed-05') as HTMLButtonElement;
 const btnSpeed10 = document.getElementById('btn-speed-10') as HTMLButtonElement;
 const btnSpeed20 = document.getElementById('btn-speed-20') as HTMLButtonElement;
+const modalVolumeSlider = document.getElementById('modal-volume-slider') as HTMLInputElement;
+const modalVolumeVal = document.getElementById('modal-volume-val') as HTMLElement;
 const segmentsContainer = document.getElementById('segments-container') as HTMLElement;
 
 // OSZ Diff Picker Elements
@@ -52,7 +57,25 @@ const oszDiffList = document.getElementById('osz-diff-list') as HTMLElement;
 
 let renderer: PlayfieldRenderer | null = null;
 let currentTargetBeatmap: ParsedBeatmap | null = null;
+let currentTargetBeatmapId: number = 0;
 let activeOszData: ExtractedOsz | null = null;
+
+// Initialize gentle default volume (20%)
+audioPreview.volume = 0.2;
+if (modalVolumeSlider && modalVolumeVal) {
+  modalVolumeSlider.value = '20';
+  modalVolumeVal.textContent = '20%';
+  modalVolumeSlider.addEventListener('input', () => {
+    const v = parseInt(modalVolumeSlider.value, 10) / 100;
+    audioPreview.volume = v;
+    modalVolumeVal.textContent = `${modalVolumeSlider.value}%`;
+  });
+  audioPreview.addEventListener('volumechange', () => {
+    const pct = Math.round(audioPreview.volume * 100);
+    modalVolumeSlider.value = pct.toString();
+    modalVolumeVal.textContent = `${pct}%`;
+  });
+}
 
 // Initialize Playfield Renderer
 function getOrCreateRenderer(): PlayfieldRenderer {
@@ -96,7 +119,8 @@ async function analyzeString(inputStr: string) {
   try {
     const analysis = await engine.analyzeTarget({ urlOrId: inputStr });
     currentTargetBeatmap = analysis.targetBeatmap;
-    displayResults(analysis.targetBeatmap, analysis.targetSetId, analysis.results);
+    currentTargetBeatmapId = analysis.targetBeatmapId || 0;
+    displayResults(analysis.targetBeatmap, analysis.targetSetId, currentTargetBeatmapId, analysis.results);
   } catch (err: any) {
     alert(`Analysis failed: ${err.message || err}`);
     progressCard.style.display = 'none';
@@ -135,7 +159,8 @@ async function handleFile(file: File) {
     try {
       const analysis = await engine.analyzeTarget({ file });
       currentTargetBeatmap = analysis.targetBeatmap;
-      displayResults(analysis.targetBeatmap, analysis.targetSetId, analysis.results);
+      currentTargetBeatmapId = analysis.targetBeatmapId || 0;
+      displayResults(analysis.targetBeatmap, analysis.targetSetId, currentTargetBeatmapId, analysis.results);
     } catch (err: any) {
       alert(`Analysis failed: ${err.message || err}`);
       progressCard.style.display = 'none';
@@ -188,7 +213,8 @@ async function runAnalysisWithDiff(parsedDiff: ParsedBeatmap) {
     });
 
     currentTargetBeatmap = analysis.targetBeatmap;
-    displayResults(analysis.targetBeatmap, analysis.targetSetId, analysis.results);
+    currentTargetBeatmapId = analysis.targetBeatmapId || 0;
+    displayResults(analysis.targetBeatmap, analysis.targetSetId, currentTargetBeatmapId, analysis.results);
   } catch (err: any) {
     alert(`Analysis failed: ${err.message || err}`);
     progressCard.style.display = 'none';
@@ -198,7 +224,7 @@ async function runAnalysisWithDiff(parsedDiff: ParsedBeatmap) {
 }
 
 // Display analysis results
-function displayResults(target: ParsedBeatmap, setId: number, results: ComparisonResult[]) {
+function displayResults(target: ParsedBeatmap, setId: number, beatmapId: number, results: ComparisonResult[]) {
   resultsSection.style.display = 'grid';
 
   const modeName = getModeName(target.mode);
@@ -215,15 +241,25 @@ function displayResults(target: ParsedBeatmap, setId: number, results: Compariso
   statObjs.textContent = `${target.hitObjects.length}`;
   statLen.textContent = formatTime(target.durationMs);
 
-  // Configure Audio Playback (Local Blob or Hinamizawa preview/music stream)
+  // Configure JoSu! / Nerinyan web player button for target
+  if (targetWebplayerLink) {
+    if (beatmapId) {
+      targetWebplayerLink.href = `https://preview.nerinyan.moe/?b=${beatmapId}`;
+      targetWebplayerLink.style.display = 'inline';
+    } else {
+      targetWebplayerLink.style.display = 'none';
+    }
+  }
+
+  // Configure Audio Playback (Local Blob or Hinamizawa full music stream)
   if (target.audioBlobUrl) {
     audioPreview.src = target.audioBlobUrl;
     audioPreview.style.display = 'block';
   } else if (setId) {
-    audioPreview.src = getPreviewAudioUrl(setId);
+    // Prefer full audio stream from mirror.hinamizawa.ai so playback spans the whole song
+    audioPreview.src = getFullAudioUrl(setId);
     audioPreview.onerror = () => {
-      // Fallback to full music stream if preview is not available
-      audioPreview.src = getFullAudioUrl(setId);
+      audioPreview.src = getPreviewAudioUrl(setId);
     };
     audioPreview.style.display = 'block';
   } else {
@@ -293,6 +329,7 @@ function displayResults(target: ParsedBeatmap, setId: number, results: Compariso
           ${res.overallSuspicionScore}%
         </div>
         <div style="display: flex; gap: 6px; align-items: center;">
+          <a href="https://preview.nerinyan.moe/?b=${res.candidateBeatmapId}" target="_blank" rel="noopener" class="btn-ctrl" style="text-decoration: none; padding: 6px 10px; font-size: 12px; color: #fb7185; border-color: rgba(244,63,94,0.3);" title="Play in JoSu! Web Player">JoSu! ↗</a>
           <a href="https://osu.ppy.sh/b/${res.candidateBeatmapId}" target="_blank" rel="noopener" class="btn-ctrl" style="text-decoration: none; padding: 6px 10px; font-size: 12px;" title="View on osu! web">osu! ↗</a>
           <button class="btn-inspect">Inspect Forensics</button>
         </div>
@@ -313,11 +350,19 @@ function openInspector(res: ComparisonResult) {
   const r = getOrCreateRenderer();
   const candModeName = getModeName(res.candidateMode);
   modalTitle.textContent = `[${candModeName}] ${currentTargetBeatmap.metadata.version} vs ${res.candidateVersion} (${res.candidateCreator})`;
-  
-  // Connect audio playback directly to visual playfield!
-  r.setAudio(audioPreview);
-  r.setMaps(currentTargetBeatmap, res.candidateBeatmap, res.segments);
-  r.handleResize();
+
+  // JoSu! / Nerinyan direct web player links
+  if (modalWebplayerCand) {
+    modalWebplayerCand.href = `https://preview.nerinyan.moe/?b=${res.candidateBeatmapId}`;
+  }
+  if (modalWebplayerTarget) {
+    if (currentTargetBeatmapId) {
+      modalWebplayerTarget.href = `https://preview.nerinyan.moe/?b=${currentTargetBeatmapId}`;
+      modalWebplayerTarget.style.display = 'inline';
+    } else {
+      modalWebplayerTarget.style.display = 'none';
+    }
+  }
 
   // Populate flagged segments list
   segmentsContainer.innerHTML = '';
@@ -347,7 +392,16 @@ function openInspector(res: ComparisonResult) {
     });
   }
 
+  // Display modal first so layout dimensions are known
   inspectorModal.style.display = 'flex';
+
+  // Resize and render playfield inside animation frame
+  requestAnimationFrame(() => {
+    r.handleResize();
+    r.setAudio(audioPreview);
+    r.setMaps(currentTargetBeatmap, res.candidateBeatmap, res.segments);
+    btnPlayToggle.textContent = 'Play';
+  });
 }
 
 // Event Listeners

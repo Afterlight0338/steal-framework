@@ -238,11 +238,7 @@ export function parseOsuFile(content: string): ParsedBeatmap {
     ? Math.max(...hitObjects.map((h) => h.endTime)) - Math.min(...hitObjects.map((h) => h.time))
     : 0;
 
-  let starRating = metadata.starRating || 0;
-  if (!starRating && durationMs > 0 && hitObjects.length > 0) {
-    const density = (hitObjects.length / (durationMs / 1000));
-    starRating = Math.max(1, Math.min(10, Math.round((density * 0.7 + difficulty.od * 0.3 + difficulty.ar * 0.2) * 10) / 10));
-  }
+  const starRating = metadata.starRating || 0;
 
   return {
     metadata,

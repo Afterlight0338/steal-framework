@@ -29,29 +29,41 @@ export class PlayfieldRenderer {
     this.audioElement = audio;
     if (this.audioElement) {
       this.audioElement.playbackRate = this.playbackRate;
+      this.audioElement.volume = 0.2; // comfortable lower default volume
     }
   }
 
-  public setMaps(target: ParsedBeatmap | null, candidate: ParsedBeatmap | null, segments: MatchSegment[] = []) {
-    this.targetMap = target;
-    this.candidateMap = candidate;
+  public setMaps(target: ParsedBeatmap | null | undefined, candidate: ParsedBeatmap | null | undefined, segments: MatchSegment[] = []) {
+    this.targetMap = target || null;
+    this.candidateMap = candidate || null;
     this.segments = segments;
 
-    if (target && target.hitObjects.length > 0) {
-      this.currentTime = target.hitObjects[0].time;
-      this.approachTime = this.calculateApproachTime(target.difficulty.ar);
+    if (segments && segments.length > 0) {
+      this.currentTime = Math.max(0, segments[0].startTime - 400);
+    } else if (target && target.hitObjects.length > 0) {
+      this.currentTime = Math.max(0, target.hitObjects[0].time - 300);
     } else if (candidate && candidate.hitObjects.length > 0) {
-      this.currentTime = candidate.hitObjects[0].time;
-      this.approachTime = this.calculateApproachTime(candidate.difficulty.ar);
+      this.currentTime = Math.max(0, candidate.hitObjects[0].time - 300);
     } else {
       this.currentTime = 0;
     }
 
+    if (target) {
+      this.approachTime = this.calculateApproachTime(target.difficulty.ar);
+    } else if (candidate) {
+      this.approachTime = this.calculateApproachTime(candidate.difficulty.ar);
+    }
+
     if (this.audioElement) {
-      this.audioElement.currentTime = this.currentTime / 1000;
+      try {
+        this.audioElement.currentTime = this.currentTime / 1000;
+      } catch (_) {}
     }
 
     this.render();
+    if (this.onTimeUpdateCallback) {
+      this.onTimeUpdateCallback(this.currentTime);
+    }
   }
 
   public setOnTimeUpdate(cb: (time: number) => void) {
@@ -124,7 +136,7 @@ export class PlayfieldRenderer {
     if (!this.isPlaying) return;
     const now = performance.now();
 
-    if (this.audioElement && !this.audioElement.paused && !this.audioElement.ended) {
+    if (this.audioElement && !this.audioElement.paused && !this.audioElement.ended && Math.abs(this.audioElement.currentTime * 1000 - this.currentTime) < 2500) {
       this.currentTime = this.audioElement.currentTime * 1000;
     } else {
       const dt = (now - this.lastAnimFrameTime) * this.playbackRate;
@@ -159,10 +171,21 @@ export class PlayfieldRenderer {
   }
 
   public handleResize() {
-    const rect = this.canvas.getBoundingClientRect();
+    let w = this.canvas.clientWidth;
+    let h = this.canvas.clientHeight;
+    if (!w || !h) {
+      const parent = this.canvas.parentElement;
+      if (parent) {
+        w = parent.clientWidth;
+        h = parent.clientHeight || Math.round((w * 9) / 16);
+      }
+    }
+    if (!w) w = 960;
+    if (!h) h = 540;
+
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = rect.width * dpr;
-    this.canvas.height = rect.height * dpr;
+    this.canvas.width = Math.round(w * dpr);
+    this.canvas.height = Math.round(h * dpr);
     this.render();
   }
 

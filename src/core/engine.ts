@@ -1,7 +1,7 @@
 import { ParsedBeatmap, ComparisonResult, AnalysisProgress, getModeName } from './types';
 import { parseOsuFile } from './parser';
 import { extractOsz, ExtractedDifficulty } from './archive';
-import { parseOsuInput, fetchRawOsu, fetchBeatmapSetDetails, searchMirror, getCoverUrl } from '../api/hinamizawa';
+import { parseOsuInput, fetchRawOsu, fetchBeatmapSetDetails, fetchBeatmapDiffDetails, searchMirror, getCoverUrl } from '../api/hinamizawa';
 import { compareBeatmaps } from './detector';
 
 export interface AnalysisInput {
@@ -70,13 +70,21 @@ export class StealEngine {
       if (parsed.type === 'beatmap' && parsed.beatmapId) {
         targetBeatmapId = parsed.beatmapId;
         targetSetId = parsed.beatmapsetId || 0;
-        const rawOsu = await fetchRawOsu(parsed.beatmapId);
+        const [rawOsu, diffMeta] = await Promise.all([
+          fetchRawOsu(parsed.beatmapId),
+          fetchBeatmapDiffDetails(parsed.beatmapId),
+        ]);
         targetBeatmap = parseOsuFile(rawOsu);
+        if (diffMeta) {
+          targetBeatmap.starRating = diffMeta.difficulty_rating;
+          targetBeatmap.mode = diffMeta.mode_int;
+          if (!targetSetId) targetSetId = diffMeta.beatmapset_id;
+        }
         if (!targetSetId) targetSetId = targetBeatmap.metadata.beatmapSetId;
       } else if (parsed.type === 'beatmapset' && parsed.beatmapsetId) {
         targetSetId = parsed.beatmapsetId;
         const setDetails = await fetchBeatmapSetDetails(parsed.beatmapsetId);
-        // Pick the most difficult std map in the set
+        // Pick the top diff
         const stdMaps = setDetails.ChildrenBeatmaps.filter((b) => b.Mode === 0);
         const mapToAnalyze = (stdMaps.length > 0 ? stdMaps : setDetails.ChildrenBeatmaps).sort(
           (a, b) => b.DifficultyRating - a.DifficultyRating
@@ -89,6 +97,8 @@ export class StealEngine {
         targetBeatmapId = mapToAnalyze.BeatmapID;
         const rawOsu = await fetchRawOsu(targetBeatmapId);
         targetBeatmap = parseOsuFile(rawOsu);
+        targetBeatmap.starRating = mapToAnalyze.DifficultyRating;
+        targetBeatmap.mode = mapToAnalyze.Mode;
       } else {
         throw new Error('Invalid osu! beatmap link, ID, or file');
       }
@@ -179,39 +189,20 @@ export class StealEngine {
         return deltaA - deltaB;
       });
 
-      // Select closest difficulty from each set
-      const topDiff = matchingModeMaps[0];
-      const starDelta = Math.abs(topDiff.DifficultyRating - targetStarRating);
-
-      candidateDiffsToFetch.push({
-        setId: set.SetID,
-        beatmapId: topDiff.BeatmapID,
-        title: set.Title,
-        artist: set.Artist,
-        creator: set.Creator,
-        version: topDiff.DiffName,
-        coverUrl: getCoverUrl(set.SetID),
-        diffRating: topDiff.DifficultyRating,
-        starDelta,
-      });
-
-      // If set has a second difficulty that is also very close in stars (within 0.8 stars), include it too
-      if (matchingModeMaps.length > 1) {
-        const secondDiff = matchingModeMaps[1];
-        const secondDelta = Math.abs(secondDiff.DifficultyRating - targetStarRating);
-        if (secondDelta <= 0.8) {
-          candidateDiffsToFetch.push({
-            setId: set.SetID,
-            beatmapId: secondDiff.BeatmapID,
-            title: set.Title,
-            artist: set.Artist,
-            creator: set.Creator,
-            version: secondDiff.DiffName,
-            coverUrl: getCoverUrl(set.SetID),
-            diffRating: secondDiff.DifficultyRating,
-            starDelta: secondDelta,
-          });
-        }
+      // Include top 3 closest diffs from each candidate set
+      const diffsToInclude = matchingModeMaps.slice(0, 3);
+      for (const d of diffsToInclude) {
+        candidateDiffsToFetch.push({
+          setId: set.SetID,
+          beatmapId: d.BeatmapID,
+          title: set.Title,
+          artist: set.Artist,
+          creator: set.Creator,
+          version: d.DiffName,
+          coverUrl: getCoverUrl(set.SetID),
+          diffRating: d.DifficultyRating,
+          starDelta: Math.abs(d.DifficultyRating - targetStarRating),
+        });
       }
     }
 

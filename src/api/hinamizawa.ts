@@ -124,6 +124,29 @@ export async function fetchRawOsu(beatmapId: number): Promise<string> {
   return await response.text();
 }
 
+export async function fetchBeatmapDiffDetails(beatmapId: number): Promise<{
+  difficulty_rating: number;
+  mode_int: number;
+  beatmapset_id: number;
+  version: string;
+} | null> {
+  try {
+    const url = `${BASE_URL}/v3/osu/beatmaps/b/${beatmapId}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      difficulty_rating: data.difficulty_rating || 0,
+      mode_int: data.mode_int !== undefined ? data.mode_int : 0,
+      beatmapset_id: data.beatmapset_id || (data.beatmapset && data.beatmapset.id) || 0,
+      version: data.version || '',
+    };
+  } catch (err) {
+    console.warn(`Could not fetch beatmap details for ${beatmapId}:`, err);
+    return null;
+  }
+}
+
 export async function fetchBeatmapSetDetails(setId: number): Promise<HinaiBeatmapSet> {
   const url = `${BASE_URL}/api/v1/hinai/s/${setId}`;
   const response = await fetch(url);
