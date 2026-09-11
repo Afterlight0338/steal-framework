@@ -151,49 +151,117 @@
       <div class="modal-card">
         <div class="modal-header">
           <div>
-            <h3 id="modal-title" style="margin-bottom: 6px;">Visual Forensic Playfield Overlay</h3>
+            <h3 id="modal-title" style="margin-bottom: 6px;">Visual Forensic Playfield Inspector</h3>
             <div class="view-mode-tabs" style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <button id="btn-tab-overlay" class="mode-tab active" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: var(--color-cyan); color: #000; font-weight: 700; border: none;">🔬 Forensic Overlay</button>
-              <button id="btn-tab-target" class="mode-tab" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ Play Target Map</button>
-              <button id="btn-tab-candidate" class="mode-tab" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ Play Candidate Map</button>
+              <button id="btn-tab-split" class="mode-tab active" style="padding: 5px 14px; font-size: 12px; border-radius: 6px; cursor: pointer; background: var(--color-cyan); color: #000; font-weight: 700; border: none;">⧉ Side-by-Side</button>
+              <button id="btn-tab-overlay" class="mode-tab" style="padding: 5px 14px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">🔬 Dual Overlay</button>
+              <button id="btn-tab-target" class="mode-tab" style="padding: 5px 14px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ Target Solo</button>
+              <button id="btn-tab-candidate" class="mode-tab" style="padding: 5px 14px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ Suspect Solo</button>
             </div>
           </div>
           <button id="btn-close-modal" class="btn-close">&times;</button>
         </div>
 
-        <div class="canvas-wrapper">
-          <canvas id="playfield-canvas"></canvas>
+        <!-- Preloading / Buffering Overlay -->
+        <div id="modal-loading-overlay" class="modal-loading-overlay" style="display: none;">
+          <div class="loading-spinner"></div>
+          <div style="text-align: center;">
+            <h4 style="margin: 0 0 4px; font-size: 15px; color: #fff;">Preloading Audio & Forensic Data...</h4>
+            <p style="margin: 0; font-size: 12px; color: var(--color-text-muted);">Caching beatmap stream and pre-rendering hit objects for 60 FPS playback</p>
+          </div>
         </div>
 
-        <div class="playback-hud">
-          <div class="scrubber-row">
-            <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="1000" value="0">
-            <span id="time-display" class="time-display">00:00.0</span>
-          </div>
+        <!-- Scrollable Modal Body -->
+        <div class="modal-body-scrollable">
+          <!-- Playfield Views Wrapper -->
+          <div class="playfields-wrapper">
+            <!-- 1. Side-by-Side Dual View (Default) -->
+            <div id="view-split" class="playfield-view split-view">
+              <div class="playfield-card target-card">
+                <div class="playfield-card-header">
+                  <div class="header-left">
+                    <span class="badge badge-target">TARGET</span>
+                    <span id="split-target-name" class="card-diff-name">Target Diff</span>
+                  </div>
+                  <div id="split-target-stats" class="card-stats">CS 4.0 | AR 9.0 | OD 8.0 | 5.0★</div>
+                </div>
+                <div class="canvas-container">
+                  <canvas id="canvas-target"></canvas>
+                </div>
+              </div>
 
-          <div class="controls-row">
-            <div class="control-buttons">
-              <button id="btn-play-toggle" class="btn-ctrl">Play</button>
-              <button id="btn-speed-05" class="btn-ctrl">0.5x</button>
-              <button id="btn-speed-10" class="btn-ctrl" style="border-color: var(--color-cyan);">1.0x</button>
-              <button id="btn-speed-20" class="btn-ctrl">2.0x</button>
-              <div class="volume-control" style="display: flex; align-items: center; gap: 6px; margin-left: 8px;">
-                <span style="font-size: 13px;">🔊</span>
-                <input type="range" id="modal-volume-slider" min="0" max="100" value="20" style="width: 75px; accent-color: var(--color-cyan); cursor: pointer;" title="Volume">
-                <span id="modal-volume-val" style="font-family: var(--font-mono); font-size: 11px; color: var(--color-text-muted); min-width: 26px;">20%</span>
+              <div class="playfield-card candidate-card">
+                <div class="playfield-card-header">
+                  <div class="header-left">
+                    <span class="badge badge-candidate">SUSPECT</span>
+                    <span id="split-candidate-name" class="card-diff-name">Candidate Diff</span>
+                  </div>
+                  <div id="split-candidate-stats" class="card-stats">CS 4.0 | AR 9.0 | OD 8.0 | 5.0★ | 99% MATCH</div>
+                </div>
+                <div class="canvas-container">
+                  <canvas id="canvas-candidate"></canvas>
+                </div>
               </div>
             </div>
 
-            <div class="legend-items">
-              <span><span class="legend-dot" style="background: #06b6d4;"></span> Target Map</span>
-              <span><span class="legend-dot" style="background: #f43f5e;"></span> Candidate Map</span>
-              <span><span class="legend-dot" style="background: #10b981;"></span> Overlap / Copied</span>
+            <!-- 2. Dual Overlay View -->
+            <div id="view-overlay" class="playfield-view overlay-view" style="display: none;">
+              <div class="playfield-card overlay-card">
+                <div class="playfield-card-header">
+                  <div class="header-left">
+                    <span class="badge badge-overlay">DUAL OVERLAY</span>
+                    <span class="card-diff-name">Target (Cyan) vs Suspect (Rose) Overlaid</span>
+                  </div>
+                  <div class="card-stats">Plagiarized Notes Highlighted with Glowing Emerald Rings (#10b981)</div>
+                </div>
+                <div class="canvas-container overlay-canvas-container">
+                  <canvas id="canvas-overlay"></canvas>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div id="segments-container" class="segments-list">
-          <!-- Copied segments injected dynamically -->
+          <!-- Playback HUD -->
+          <div class="playback-hud">
+            <div class="scrubber-row">
+              <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="1000" value="0">
+              <span id="time-display" class="time-display">00:00.0</span>
+            </div>
+
+            <div class="controls-row">
+              <div class="control-buttons">
+                <button id="btn-play-toggle" class="btn-ctrl">Play</button>
+                <button id="btn-speed-05" class="btn-ctrl">0.5x</button>
+                <button id="btn-speed-10" class="btn-ctrl" style="border-color: var(--color-cyan);">1.0x</button>
+                <button id="btn-speed-20" class="btn-ctrl">2.0x</button>
+                <div class="volume-control" style="display: flex; align-items: center; gap: 6px; margin-left: 8px;">
+                  <span style="font-size: 13px;">🔊</span>
+                  <input type="range" id="modal-volume-slider" min="0" max="100" value="20" style="width: 75px; accent-color: var(--color-cyan); cursor: pointer;" title="Volume">
+                  <span id="modal-volume-val" style="font-family: var(--font-mono); font-size: 11px; color: var(--color-text-muted); min-width: 26px;">20%</span>
+                </div>
+              </div>
+
+              <div class="legend-items">
+                <span><span class="legend-dot" style="background: #06b6d4;"></span> Target</span>
+                <span><span class="legend-dot" style="background: #f43f5e;"></span> Suspect</span>
+                <span><span class="legend-dot" style="background: #10b981;"></span> Stolen / Plagiarized</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Flagged Patterns Section -->
+          <div class="segments-section">
+            <div class="segments-header">
+              <div>
+                <h4 style="margin: 0; font-size: 13px; font-weight: 700; color: #fb7185;">⚠️ Flagged Plagiarized Sequences</h4>
+                <span style="font-size: 11px; color: var(--color-text-muted);">Click any pattern to immediately jump and highlight both playfields</span>
+              </div>
+              <span id="segments-count-badge" class="badge" style="background: rgba(244, 63, 94, 0.15); color: #fb7185; font-size: 11px;">0 Sequences</span>
+            </div>
+            <div id="segments-container" class="segments-list">
+              <!-- Copied segments injected dynamically -->
+            </div>
+          </div>
         </div>
       </div>
     </div>

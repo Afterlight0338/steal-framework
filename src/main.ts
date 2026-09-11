@@ -38,10 +38,21 @@ const candidateList = document.getElementById('candidate-list') as HTMLElement;
 const inspectorModal = document.getElementById('inspector-modal') as HTMLElement;
 const btnCloseModal = document.getElementById('btn-close-modal') as HTMLButtonElement;
 const modalTitle = document.getElementById('modal-title') as HTMLElement;
+const btnTabSplit = document.getElementById('btn-tab-split') as HTMLButtonElement;
 const btnTabOverlay = document.getElementById('btn-tab-overlay') as HTMLButtonElement;
 const btnTabTarget = document.getElementById('btn-tab-target') as HTMLButtonElement;
 const btnTabCandidate = document.getElementById('btn-tab-candidate') as HTMLButtonElement;
-const playfieldCanvas = document.getElementById('playfield-canvas') as HTMLCanvasElement;
+const modalLoadingOverlay = document.getElementById('modal-loading-overlay') as HTMLElement;
+const viewSplit = document.getElementById('view-split') as HTMLElement;
+const viewOverlay = document.getElementById('view-overlay') as HTMLElement;
+const canvasTarget = document.getElementById('canvas-target') as HTMLCanvasElement;
+const canvasCandidate = document.getElementById('canvas-candidate') as HTMLCanvasElement;
+const canvasOverlay = document.getElementById('canvas-overlay') as HTMLCanvasElement;
+const splitTargetName = document.getElementById('split-target-name') as HTMLElement;
+const splitTargetStats = document.getElementById('split-target-stats') as HTMLElement;
+const splitCandidateName = document.getElementById('split-candidate-name') as HTMLElement;
+const splitCandidateStats = document.getElementById('split-candidate-stats') as HTMLElement;
+const segmentsCountBadge = document.getElementById('segments-count-badge') as HTMLElement;
 const timelineSlider = document.getElementById('timeline-slider') as HTMLInputElement;
 const timeDisplay = document.getElementById('time-display') as HTMLElement;
 const btnPlayToggle = document.getElementById('btn-play-toggle') as HTMLButtonElement;
@@ -84,7 +95,11 @@ if (modalVolumeSlider && modalVolumeVal) {
 // Initialize Playfield Renderer
 function getOrCreateRenderer(): PlayfieldRenderer {
   if (!renderer) {
-    renderer = new PlayfieldRenderer(playfieldCanvas);
+    renderer = new PlayfieldRenderer({
+      targetCanvas: canvasTarget,
+      candidateCanvas: canvasCandidate,
+      overlayCanvas: canvasOverlay,
+    });
     renderer.setOnTimeUpdate((time) => {
       timeDisplay.textContent = formatTime(time);
       const dur = renderer?.getDuration() || 1;
@@ -346,7 +361,7 @@ function displayResults(target: ParsedBeatmap, setId: number, beatmapId: number,
     `;
 
     const inspectBtn = card.querySelector('.btn-inspect') as HTMLButtonElement;
-    inspectBtn.onclick = () => openInspector(res, 'overlay');
+    inspectBtn.onclick = () => openInspector(res, 'split');
 
     const inspectSoloBtn = card.querySelector('.btn-inspect-solo') as HTMLButtonElement;
     inspectSoloBtn.onclick = () => openInspector(res, 'candidate');
@@ -355,25 +370,63 @@ function displayResults(target: ParsedBeatmap, setId: number, beatmapId: number,
   });
 }
 
-function switchViewMode(mode: 'overlay' | 'target' | 'candidate') {
+function switchViewMode(mode: 'split' | 'overlay' | 'target' | 'candidate') {
   const r = getOrCreateRenderer();
+
+  if (mode === 'split') {
+    viewSplit.style.display = 'flex';
+    viewOverlay.style.display = 'none';
+    const targetCard = viewSplit.querySelector('.target-card') as HTMLElement;
+    const candidateCard = viewSplit.querySelector('.candidate-card') as HTMLElement;
+    if (targetCard) targetCard.style.display = 'flex';
+    if (candidateCard) candidateCard.style.display = 'flex';
+  } else if (mode === 'overlay') {
+    viewSplit.style.display = 'none';
+    viewOverlay.style.display = 'flex';
+  } else if (mode === 'target') {
+    viewSplit.style.display = 'flex';
+    viewOverlay.style.display = 'none';
+    const targetCard = viewSplit.querySelector('.target-card') as HTMLElement;
+    const candidateCard = viewSplit.querySelector('.candidate-card') as HTMLElement;
+    if (targetCard) targetCard.style.display = 'flex';
+    if (candidateCard) candidateCard.style.display = 'none';
+  } else if (mode === 'candidate') {
+    viewSplit.style.display = 'flex';
+    viewOverlay.style.display = 'none';
+    const targetCard = viewSplit.querySelector('.target-card') as HTMLElement;
+    const candidateCard = viewSplit.querySelector('.candidate-card') as HTMLElement;
+    if (targetCard) targetCard.style.display = 'none';
+    if (candidateCard) candidateCard.style.display = 'flex';
+  }
+
   r.setViewMode(mode);
-  [btnTabOverlay, btnTabTarget, btnTabCandidate].forEach((b) => {
+
+  [btnTabSplit, btnTabOverlay, btnTabTarget, btnTabCandidate].forEach((b) => {
     if (!b) return;
     b.style.background = 'rgba(255, 255, 255, 0.08)';
     b.style.color = '#cbd5e1';
     b.style.fontWeight = 'normal';
     b.style.border = '1px solid var(--border-subtle)';
   });
-  const activeBtn = mode === 'overlay' ? btnTabOverlay : (mode === 'target' ? btnTabTarget : btnTabCandidate);
+
+  const activeBtn =
+    mode === 'split' ? btnTabSplit :
+    mode === 'overlay' ? btnTabOverlay :
+    mode === 'target' ? btnTabTarget :
+    btnTabCandidate;
+
   if (activeBtn) {
-    activeBtn.style.background = mode === 'candidate' ? '#fb7185' : 'var(--color-cyan)';
+    activeBtn.style.background =
+      mode === 'candidate' ? '#fb7185' :
+      mode === 'overlay' ? '#10b981' :
+      'var(--color-cyan)';
     activeBtn.style.color = '#000';
     activeBtn.style.fontWeight = '700';
     activeBtn.style.border = 'none';
   }
 }
 
+if (btnTabSplit) btnTabSplit.onclick = () => switchViewMode('split');
 if (btnTabOverlay) btnTabOverlay.onclick = () => switchViewMode('overlay');
 if (btnTabTarget) btnTabTarget.onclick = () => switchViewMode('target');
 if (btnTabCandidate) btnTabCandidate.onclick = () => switchViewMode('candidate');
@@ -405,21 +458,46 @@ if (btnTargetPlayer) {
   };
 }
 
-// Open Playfield Inspector Modal
-function openInspector(res: ComparisonResult, initialMode: 'overlay' | 'target' | 'candidate' = 'overlay') {
+// Open Playfield Inspector Modal with Preload Gate
+async function openInspector(
+  res: ComparisonResult,
+  initialMode: 'split' | 'overlay' | 'target' | 'candidate' = 'split'
+) {
   if (!currentTargetBeatmap || !res.candidateBeatmap) return;
   currentComparisonResult = res;
 
-  const r = getOrCreateRenderer();
+  // Display modal immediately with loading overlay to prevent jitter
+  inspectorModal.style.display = 'flex';
+  if (modalLoadingOverlay) modalLoadingOverlay.style.display = 'flex';
+
   const candModeName = getModeName(res.candidateMode);
   modalTitle.textContent = `[${candModeName}] ${currentTargetBeatmap.metadata.version} vs ${res.candidateVersion} (${res.candidateCreator})`;
 
-  // Populate flagged segments list
+  // Populate card header details
+  if (splitTargetName) {
+    splitTargetName.textContent = currentTargetBeatmap.metadata.version;
+  }
+  if (splitTargetStats) {
+    const diff = currentTargetBeatmap.difficulty;
+    splitTargetStats.textContent = `CS ${diff.cs.toFixed(1)} | AR ${diff.ar.toFixed(1)} | OD ${diff.od.toFixed(1)} | ${currentTargetBeatmap.starRating.toFixed(2)}★`;
+  }
+  if (splitCandidateName) {
+    splitCandidateName.textContent = `${res.candidateVersion} (${res.candidateCreator})`;
+  }
+  if (splitCandidateStats) {
+    const diff = res.candidateBeatmap.difficulty;
+    splitCandidateStats.textContent = `CS ${diff.cs.toFixed(1)} | AR ${diff.ar.toFixed(1)} | OD ${diff.od.toFixed(1)} | ${res.candidateDifficultyRating.toFixed(2)}★ | ${res.overallSuspicionScore}% MATCH`;
+  }
+  if (segmentsCountBadge) {
+    segmentsCountBadge.textContent = `${res.segments.length} Sequences`;
+  }
+
+  // Populate flagged segments list with high-contrast, readable cards
   segmentsContainer.innerHTML = '';
   if (res.segments.length === 0) {
     segmentsContainer.innerHTML = `
-      <div style="color: var(--color-text-muted); font-size: 13px; text-align: center; padding: 10px;">
-        No continuous stolen object sequences detected. Playfield overlay shows notes in real-time.
+      <div style="color: var(--color-text-muted); font-size: 13px; text-align: center; padding: 14px;">
+        No continuous stolen object sequences detected. Playfield monitors notes in real-time.
       </div>
     `;
   } else {
@@ -427,33 +505,71 @@ function openInspector(res: ComparisonResult, initialMode: 'overlay' | 'target' 
       const item = document.createElement('div');
       item.className = 'segment-item';
       item.innerHTML = `
-        <div>
-          <strong style="color: #fb7185;">#${idx + 1} Flagged Pattern</strong>
-          <span style="color: var(--color-text-muted); margin-left: 8px;">${seg.description}</span>
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span class="seg-badge-danger">#${idx + 1} COPIED PATTERN</span>
+            <span class="seg-time-pill">${formatTime(seg.startTime)} – ${formatTime(seg.endTime)}</span>
+            <span style="font-size: 11px; color: #34d399; font-weight: 700;">${seg.objectCount} objects</span>
+          </div>
+          <div style="color: #cbd5e1; font-size: 12px; margin-top: 2px;">
+            ${seg.description}
+          </div>
         </div>
-        <span style="font-family: var(--font-mono); color: var(--color-cyan); font-size: 12px;">${formatTime(seg.startTime)}</span>
+        <button class="btn-ctrl" style="padding: 4px 10px; font-size: 11px; color: var(--color-cyan); border-color: rgba(6,182,212,0.3); white-space: nowrap;">▶ Jump</button>
       `;
       item.onclick = () => {
+        const r = getOrCreateRenderer();
         r.pause();
         btnPlayToggle.textContent = 'Play';
-        switchViewMode('overlay');
-        r.setTime(Math.max(0, seg.startTime - 400));
+        r.setTime(Math.max(0, seg.startTime - 350));
+        document.querySelectorAll('.segment-item').forEach((si) => si.classList.remove('active'));
+        item.classList.add('active');
       };
       segmentsContainer.appendChild(item);
     });
   }
 
-  // Display modal first so layout dimensions are known
-  inspectorModal.style.display = 'flex';
+  // Pre-buffer audio stream before starting playback
+  const targetAudioUrl =
+    currentTargetBeatmap?.audioBlobUrl ||
+    (currentTargetSetId ? getFullAudioUrl(currentTargetSetId) : '');
 
-  // Resize and render playfield inside animation frame
-  requestAnimationFrame(() => {
-    r.handleResize();
-    r.setAudio(audioPreview);
-    r.setMaps(currentTargetBeatmap, res.candidateBeatmap, res.segments);
-    switchViewMode(initialMode);
-    btnPlayToggle.textContent = 'Play';
+  if (targetAudioUrl && audioPreview.src !== targetAudioUrl) {
+    audioPreview.src = targetAudioUrl;
+    audioPreview.load();
+  }
+
+  // Preload gate: wait for audio readyState or max 1.0s timeout
+  await new Promise<void>((resolve) => {
+    if (!targetAudioUrl || audioPreview.readyState >= 2) {
+      resolve();
+      return;
+    }
+    let finished = false;
+    const onReady = () => {
+      if (!finished) {
+        finished = true;
+        audioPreview.removeEventListener('canplay', onReady);
+        audioPreview.removeEventListener('loadeddata', onReady);
+        audioPreview.removeEventListener('error', onReady);
+        resolve();
+      }
+    };
+    audioPreview.addEventListener('canplay', onReady);
+    audioPreview.addEventListener('loadeddata', onReady);
+    audioPreview.addEventListener('error', onReady);
+    setTimeout(onReady, 1000);
   });
+
+  // Ready! Hide preloader and render playfields
+  if (modalLoadingOverlay) modalLoadingOverlay.style.display = 'none';
+
+  const r = getOrCreateRenderer();
+  r.handleResize();
+  r.setAudio(audioPreview);
+  r.setMaps(currentTargetBeatmap, res.candidateBeatmap, res.segments);
+  switchViewMode(initialMode);
+  btnPlayToggle.textContent = 'Play';
 }
 
 // Event Listeners

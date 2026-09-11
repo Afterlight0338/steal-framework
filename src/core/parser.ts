@@ -227,6 +227,17 @@ export function parseOsuFile(content: string): ParsedBeatmap {
   // Sort hit objects by time
   hitObjects.sort((a, b) => a.time - b.time);
 
+  // Assign sequential combo numbers
+  let currentCombo = 1;
+  for (let i = 0; i < hitObjects.length; i++) {
+    const obj = hitObjects[i];
+    if (i === 0 || (obj.type & 4) !== 0) {
+      currentCombo = 1;
+    }
+    obj.comboNumber = currentCombo;
+    currentCombo++;
+  }
+
   // Calculate BPM from first uninherited timing point
   let bpm = 120;
   const firstUninherited = timingPoints.find((tp) => tp.uninherited);

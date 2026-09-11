@@ -55,6 +55,7 @@ export interface HitObject {
   repeats?: number;
   pixelLength?: number;
   comboNumber?: number;
+  isFlagged?: boolean;
 }
 
 export interface ParsedBeatmap {
