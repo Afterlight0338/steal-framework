@@ -1,4 +1,4 @@
-import { ParsedBeatmap, ComparisonResult, AnalysisProgress } from './types';
+import { ParsedBeatmap, ComparisonResult, AnalysisProgress, getModeName } from './types';
 import { parseOsuFile } from './parser';
 import { extractOsz, ExtractedDifficulty } from './archive';
 import { parseOsuInput, fetchRawOsu, fetchBeatmapSetDetails, searchMirror, getCoverUrl } from '../api/hinamizawa';
@@ -96,26 +96,29 @@ export class StealEngine {
       throw new Error('No beatmap provided for analysis');
     }
 
-    // 2. Search Hinamizawa Mirror for Same Song
+    // 2. Search Hinamizawa Mirror for Same Song with matching Game Mode
     const artist = targetBeatmap.metadata.artist;
     const title = targetBeatmap.metadata.title;
+    const targetMode = targetBeatmap.mode || 0;
+    const targetStarRating = targetBeatmap.starRating || 5.0;
+
     // Build query prioritizing cleaned title & artist
     const query = `${artist} ${title}`.trim();
 
     this.notify({
       step: 'searching_mirror',
-      message: `Searching mirror.hinamizawa.ai for other maps of "${title}"...`,
+      message: `Searching mirror.hinamizawa.ai for ${getModeName(targetMode)} maps of "${title}" near ${targetStarRating.toFixed(1)}★...`,
       percent: 25,
     });
 
-    const searchHits = await searchMirror(query, 30);
+    const searchHits = await searchMirror(query, 40, targetMode);
 
     // Filter out target's own beatmapset
     const candidateSets = searchHits.filter((s) => s.SetID !== targetSetId);
 
     // If query was very specific and returned few results, try title only
     if (candidateSets.length < 3 && title) {
-      const titleOnlyHits = await searchMirror(title, 20);
+      const titleOnlyHits = await searchMirror(title, 30, targetMode);
       for (const s of titleOnlyHits) {
         if (s.SetID !== targetSetId && !candidateSets.some((existing) => existing.SetID === s.SetID)) {
           candidateSets.push(s);
@@ -126,7 +129,7 @@ export class StealEngine {
     if (candidateSets.length === 0) {
       this.notify({
         step: 'complete',
-        message: 'No other beatmaps of this song found on the mirror.',
+        message: `No other ${getModeName(targetMode)} beatmaps of this song found on the mirror.`,
         percent: 100,
       });
 
@@ -139,10 +142,10 @@ export class StealEngine {
       };
     }
 
-    // 3. Fetch candidate difficulties & compare
+    // 3. Fetch candidate difficulties matching Mode & Star Range
     this.notify({
       step: 'fetching_candidates',
-      message: `Found ${candidateSets.length} sets. Fetching candidate difficulties...`,
+      message: `Found ${candidateSets.length} sets. Filtering by ${getModeName(targetMode)} and star range...`,
       percent: 40,
       totalCandidates: candidateSets.length,
       processedCandidates: 0,
@@ -151,7 +154,7 @@ export class StealEngine {
     const results: ComparisonResult[] = [];
     let processed = 0;
 
-    // Pick best matching difficulty from each candidate set
+    // Collect candidates matching target game mode
     const candidateDiffsToFetch: Array<{
       setId: number;
       beatmapId: number;
@@ -161,34 +164,59 @@ export class StealEngine {
       version: string;
       coverUrl: string;
       diffRating: number;
+      starDelta: number;
     }> = [];
 
     for (const set of candidateSets) {
-      const stdMaps = set.ChildrenBeatmaps.filter((b) => b.Mode === 0);
-      const pool = stdMaps.length > 0 ? stdMaps : set.ChildrenBeatmaps;
-      if (pool.length === 0) continue;
+      // STRICT FILTER: Only accept difficulties matching the target map's game mode!
+      const matchingModeMaps = set.ChildrenBeatmaps.filter((b) => b.Mode === targetMode);
+      if (matchingModeMaps.length === 0) continue;
 
-      // Find difficulty with closest object count / length or star rating
-      const targetDiffRating = targetBeatmap.difficulty.od; // reference
-      const sortedByCloseness = [...pool].sort((a, b) => {
-        return Math.abs(a.DifficultyRating - targetDiffRating) - Math.abs(b.DifficultyRating - targetDiffRating);
+      // Sort by closest star rating to target
+      matchingModeMaps.sort((a, b) => {
+        const deltaA = Math.abs(a.DifficultyRating - targetStarRating);
+        const deltaB = Math.abs(b.DifficultyRating - targetStarRating);
+        return deltaA - deltaB;
       });
 
-      // Take top 1 or 2 candidate diffs per set
-      for (let i = 0; i < Math.min(2, sortedByCloseness.length); i++) {
-        const c = sortedByCloseness[i];
-        candidateDiffsToFetch.push({
-          setId: set.SetID,
-          beatmapId: c.BeatmapID,
-          title: set.Title,
-          artist: set.Artist,
-          creator: set.Creator,
-          version: c.DiffName,
-          coverUrl: getCoverUrl(set.SetID),
-          diffRating: c.DifficultyRating,
-        });
+      // Select closest difficulty from each set
+      const topDiff = matchingModeMaps[0];
+      const starDelta = Math.abs(topDiff.DifficultyRating - targetStarRating);
+
+      candidateDiffsToFetch.push({
+        setId: set.SetID,
+        beatmapId: topDiff.BeatmapID,
+        title: set.Title,
+        artist: set.Artist,
+        creator: set.Creator,
+        version: topDiff.DiffName,
+        coverUrl: getCoverUrl(set.SetID),
+        diffRating: topDiff.DifficultyRating,
+        starDelta,
+      });
+
+      // If set has a second difficulty that is also very close in stars (within 0.8 stars), include it too
+      if (matchingModeMaps.length > 1) {
+        const secondDiff = matchingModeMaps[1];
+        const secondDelta = Math.abs(secondDiff.DifficultyRating - targetStarRating);
+        if (secondDelta <= 0.8) {
+          candidateDiffsToFetch.push({
+            setId: set.SetID,
+            beatmapId: secondDiff.BeatmapID,
+            title: set.Title,
+            artist: set.Artist,
+            creator: set.Creator,
+            version: secondDiff.DiffName,
+            coverUrl: getCoverUrl(set.SetID),
+            diffRating: secondDiff.DifficultyRating,
+            starDelta: secondDelta,
+          });
+        }
       }
     }
+
+    // Sort candidate diffs by star rating delta so the closest stars are analyzed first!
+    candidateDiffsToFetch.sort((a, b) => a.starDelta - b.starDelta);
 
     // Fetch and analyze in parallel batches of 4
     const BATCH_SIZE = 4;

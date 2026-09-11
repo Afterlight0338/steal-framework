@@ -53,6 +53,21 @@ export async function extractOsz(fileData: ArrayBuffer | Blob): Promise<Extracte
     }
   }
 
+  // Find audio file
+  let audioBlobUrl: string | undefined;
+  const audioEntryName = entries.find((name) => {
+    const lower = name.toLowerCase();
+    return lower.endsWith('.mp3') || lower.endsWith('.ogg') || lower.endsWith('.wav');
+  });
+
+  if (audioEntryName) {
+    const audioBlob = await zip.files[audioEntryName].async('blob');
+    audioBlobUrl = URL.createObjectURL(audioBlob);
+    difficulties.forEach((d) => {
+      d.parsed.audioBlobUrl = audioBlobUrl;
+    });
+  }
+
   // Sort difficulties by object count / approach rate
   difficulties.sort((a, b) => a.objectCount - b.objectCount);
 
@@ -61,5 +76,6 @@ export async function extractOsz(fileData: ArrayBuffer | Blob): Promise<Extracte
     artist,
     creator,
     difficulties,
+    audioBlobUrl,
   };
 }

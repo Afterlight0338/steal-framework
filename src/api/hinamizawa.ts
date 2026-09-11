@@ -162,12 +162,13 @@ export async function fetchBeatmapSetDetails(setId: number): Promise<HinaiBeatma
   };
 }
 
-export async function searchMirror(query: string, limit = 25): Promise<HinaiBeatmapSet[]> {
+export async function searchMirror(query: string, limit = 25, mode = -1): Promise<HinaiBeatmapSet[]> {
   const cleanQuery = query.trim();
   if (!cleanQuery) return [];
 
-  // Use the CheeseGull compatible search endpoint which returns clean flat array
-  const searchUrl = `${BASE_URL}/api/v1/hinai/search?query=${encodeURIComponent(cleanQuery)}&amount=${Math.min(limit, 50)}`;
+  // Use the CheeseGull compatible search endpoint with optional mode filter (0=std, 1=taiko, 2=catch, 3=mania)
+  const modeParam = mode >= 0 && mode <= 3 ? `&mode=${mode}` : '';
+  const searchUrl = `${BASE_URL}/api/v1/hinai/search?query=${encodeURIComponent(cleanQuery)}&amount=${Math.min(limit, 50)}${modeParam}`;
   
   try {
     const response = await fetch(searchUrl);
@@ -196,7 +197,7 @@ export async function searchMirror(query: string, limit = 25): Promise<HinaiBeat
         AR: b.AR,
         OD: b.OD,
         HP: b.HP,
-        Mode: b.Mode,
+        Mode: b.Mode !== undefined ? b.Mode : (b.mode_int ?? 0),
         HitLength: b.HitLength,
         TotalLength: b.TotalLength,
         FileMD5: b.FileMD5,
@@ -215,5 +216,11 @@ export function getCoverUrl(setId: number): string {
 }
 
 export function getPreviewAudioUrl(setId: number): string {
-  return `${BASE_URL}/v3/osu/beatmaps/preview/${setId}`;
+  // Returns direct MP3 preview audio stream (b.ppy.sh / catboy)
+  return `https://b.ppy.sh/preview/${setId}.mp3`;
+}
+
+export function getFullAudioUrl(setId: number): string {
+  // Returns full music audio stream from Hinamizawa's 67,000+ song archive
+  return `${BASE_URL}/v3/osu/music/audio/${setId}`;
 }

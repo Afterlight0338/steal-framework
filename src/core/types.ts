@@ -9,6 +9,9 @@ export interface BeatmapMetadata {
   tags: string[];
   beatmapId: number;
   beatmapSetId: number;
+  mode: number; // 0 = std, 1 = taiko, 2 = catch, 3 = mania
+  audioFilename?: string;
+  starRating?: number;
 }
 
 export interface BeatmapDifficulty {
@@ -62,6 +65,18 @@ export interface ParsedBeatmap {
   rawText: string;
   durationMs: number;
   bpm: number;
+  mode: number;
+  starRating: number;
+  audioBlobUrl?: string;
+}
+
+export function getModeName(mode: number): string {
+  switch (mode) {
+    case 1: return 'osu!taiko';
+    case 2: return 'osu!catch';
+    case 3: return 'osu!mania';
+    default: return 'osu!';
+  }
 }
 
 export type TransformationType = 
@@ -97,7 +112,8 @@ export interface ComparisonResult {
   candidateArtist: string;
   candidateCreator: string;
   candidateVersion: string;
-  candidateDifficultyRating?: number;
+  candidateMode: number;
+  candidateDifficultyRating: number;
   candidateCoverUrl: string;
   rhythmOverlapPercentage: number;
   spatialOverlapPercentage: number;

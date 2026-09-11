@@ -2,9 +2,9 @@ import './style.css';
 import { StealEngine } from './core/engine';
 import { PlayfieldRenderer } from './core/renderer';
 import { extractOsz, ExtractedOsz } from './core/archive';
-import { ParsedBeatmap, ComparisonResult, AnalysisProgress } from './core/types';
+import { ParsedBeatmap, ComparisonResult, AnalysisProgress, getModeName } from './core/types';
 import { formatTime } from './core/detector';
-import { getCoverUrl, getPreviewAudioUrl } from './api/hinamizawa';
+import { getCoverUrl, getPreviewAudioUrl, getFullAudioUrl } from './api/hinamizawa';
 
 // DOM Elements
 const mapInput = document.getElementById('map-input') as HTMLInputElement;
@@ -201,20 +201,30 @@ async function runAnalysisWithDiff(parsedDiff: ParsedBeatmap) {
 function displayResults(target: ParsedBeatmap, setId: number, results: ComparisonResult[]) {
   resultsSection.style.display = 'grid';
 
+  const modeName = getModeName(target.mode);
+
   // Target card
   targetCover.src = setId ? getCoverUrl(setId) : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"/>';
   targetTitle.textContent = target.metadata.title;
-  targetArtist.textContent = `${target.metadata.artist} • mapped by ${target.metadata.creator}`;
+  targetArtist.innerHTML = `${escapeHtml(target.metadata.artist)} • mapped by <strong>${escapeHtml(target.metadata.creator)}</strong> <span class="badge badge-cyan" style="margin-left: 6px;">${modeName}</span>`;
 
-  statDiff.textContent = target.metadata.version || 'Normal';
+  statDiff.textContent = `${target.metadata.version || 'Normal'} (${target.starRating.toFixed(2)}★)`;
   statBpm.textContent = `${target.bpm}`;
   statCs.textContent = `${target.difficulty.cs}`;
   statAr.textContent = `${target.difficulty.ar}`;
   statObjs.textContent = `${target.hitObjects.length}`;
   statLen.textContent = formatTime(target.durationMs);
 
-  if (setId) {
+  // Configure Audio Playback (Local Blob or Hinamizawa preview/music stream)
+  if (target.audioBlobUrl) {
+    audioPreview.src = target.audioBlobUrl;
+    audioPreview.style.display = 'block';
+  } else if (setId) {
     audioPreview.src = getPreviewAudioUrl(setId);
+    audioPreview.onerror = () => {
+      // Fallback to full music stream if preview is not available
+      audioPreview.src = getFullAudioUrl(setId);
+    };
     audioPreview.style.display = 'block';
   } else {
     audioPreview.style.display = 'none';
@@ -244,8 +254,8 @@ function displayResults(target: ParsedBeatmap, setId: number, results: Compariso
   if (results.length === 0) {
     candidateList.innerHTML = `
       <div style="padding: 32px; text-align: center; color: var(--color-text-muted); background: var(--bg-card); border-radius: 14px; border: 1px solid var(--border-subtle);">
-        <p style="font-size: 16px;">No other maps for this song found on the mirror.</p>
-        <p style="font-size: 13px; margin-top: 6px;">The map appears to be unique or the song has not been mapped elsewhere.</p>
+        <p style="font-size: 16px;">No other ${modeName} maps for this song found on the mirror.</p>
+        <p style="font-size: 13px; margin-top: 6px;">The map appears to be unique in this game mode or the song has not been mapped elsewhere.</p>
       </div>
     `;
     return;
@@ -260,10 +270,16 @@ function displayResults(target: ParsedBeatmap, setId: number, results: Compariso
     else if (res.overallSuspicionScore >= 45) scoreColor = '#fbbf24';
     else if (res.overallSuspicionScore >= 25) scoreColor = '#38bdf8';
 
+    const candModeName = getModeName(res.candidateMode);
+
     card.innerHTML = `
       <img class="candidate-thumb" src="${res.candidateCoverUrl || ''}" alt="Cover" onerror="this.style.opacity='0.2'">
       <div class="candidate-info">
-        <h4>${escapeHtml(res.candidateTitle)} [${escapeHtml(res.candidateVersion)}]</h4>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
+          <span class="badge badge-cyan" style="font-size: 10px; padding: 2px 6px;">${candModeName}</span>
+          <span class="badge" style="font-size: 10px; padding: 2px 6px; color: #fbbf24; border-color: rgba(245,158,11,0.3);">★ ${res.candidateDifficultyRating.toFixed(2)}</span>
+          <h4 style="margin: 0;">${escapeHtml(res.candidateTitle)} [${escapeHtml(res.candidateVersion)}]</h4>
+        </div>
         <p class="candidate-mapper">Mapped by <strong>${escapeHtml(res.candidateCreator)}</strong></p>
         <div class="candidate-metrics">
           <div class="metric-tag">Rhythm Match: <b>${res.rhythmOverlapPercentage}%</b></div>
@@ -276,7 +292,10 @@ function displayResults(target: ParsedBeatmap, setId: number, results: Compariso
         <div class="suspicion-score-badge" style="color: ${scoreColor};">
           ${res.overallSuspicionScore}%
         </div>
-        <button class="btn-inspect">Inspect Forensics</button>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <a href="https://osu.ppy.sh/b/${res.candidateBeatmapId}" target="_blank" rel="noopener" class="btn-ctrl" style="text-decoration: none; padding: 6px 10px; font-size: 12px;" title="View on osu! web">osu! ↗</a>
+          <button class="btn-inspect">Inspect Forensics</button>
+        </div>
       </div>
     `;
 
@@ -292,8 +311,11 @@ function openInspector(res: ComparisonResult) {
   if (!currentTargetBeatmap || !res.candidateBeatmap) return;
 
   const r = getOrCreateRenderer();
-  modalTitle.textContent = `Comparing: ${currentTargetBeatmap.metadata.version} vs ${res.candidateVersion} (${res.candidateCreator})`;
+  const candModeName = getModeName(res.candidateMode);
+  modalTitle.textContent = `[${candModeName}] ${currentTargetBeatmap.metadata.version} vs ${res.candidateVersion} (${res.candidateCreator})`;
   
+  // Connect audio playback directly to visual playfield!
+  r.setAudio(audioPreview);
   r.setMaps(currentTargetBeatmap, res.candidateBeatmap, res.segments);
   r.handleResize();
 

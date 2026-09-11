@@ -14,6 +14,7 @@ export function parseOsuFile(content: string): ParsedBeatmap {
     tags: [],
     beatmapId: 0,
     beatmapSetId: 0,
+    mode: 0,
   };
 
   const difficulty: BeatmapDifficulty = {
@@ -41,7 +42,18 @@ export function parseOsuFile(content: string): ParsedBeatmap {
       continue;
     }
 
-    if (currentSection === 'Metadata') {
+    if (currentSection === 'General') {
+      const colonIdx = rawLine.indexOf(':');
+      if (colonIdx !== -1) {
+        const key = rawLine.slice(0, colonIdx).trim();
+        const val = rawLine.slice(colonIdx + 1).trim();
+        if (key === 'Mode') {
+          metadata.mode = parseInt(val, 10) || 0;
+        } else if (key === 'AudioFilename') {
+          metadata.audioFilename = val;
+        }
+      }
+    } else if (currentSection === 'Metadata') {
       const colonIdx = rawLine.indexOf(':');
       if (colonIdx !== -1) {
         const key = rawLine.slice(0, colonIdx).trim();
@@ -226,6 +238,12 @@ export function parseOsuFile(content: string): ParsedBeatmap {
     ? Math.max(...hitObjects.map((h) => h.endTime)) - Math.min(...hitObjects.map((h) => h.time))
     : 0;
 
+  let starRating = metadata.starRating || 0;
+  if (!starRating && durationMs > 0 && hitObjects.length > 0) {
+    const density = (hitObjects.length / (durationMs / 1000));
+    starRating = Math.max(1, Math.min(10, Math.round((density * 0.7 + difficulty.od * 0.3 + difficulty.ar * 0.2) * 10) / 10));
+  }
+
   return {
     metadata,
     difficulty,
@@ -234,6 +252,8 @@ export function parseOsuFile(content: string): ParsedBeatmap {
     rawText: content,
     durationMs,
     bpm,
+    mode: metadata.mode || 0,
+    starRating,
   };
 }
 
