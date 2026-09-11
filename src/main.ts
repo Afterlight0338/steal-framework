@@ -612,17 +612,6 @@ dropzone.addEventListener('drop', (e) => {
   }
 });
 
-// Preset Chips
-document.querySelectorAll('.preset-chip').forEach((chip) => {
-  chip.addEventListener('click', () => {
-    const id = chip.getAttribute('data-id');
-    if (id) {
-      mapInput.value = id;
-      analyzeString(id);
-    }
-  });
-});
-
 // Inspector Modal Controls
 function closeInspector() {
   renderer?.pause();
