@@ -154,8 +154,8 @@
             <h3 id="modal-title" style="margin-bottom: 6px;">Visual Forensic Playfield Overlay</h3>
             <div class="view-mode-tabs" style="display: flex; gap: 8px; flex-wrap: wrap;">
               <button id="btn-tab-overlay" class="mode-tab active" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: var(--color-cyan); color: #000; font-weight: 700; border: none;">🔬 Forensic Overlay</button>
-              <button id="btn-tab-target" class="mode-tab" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ Play Target Map</button>
-              <button id="btn-tab-candidate" class="mode-tab" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ Play Candidate Map</button>
+              <button id="btn-tab-target" class="mode-tab" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ JoSu! Target</button>
+              <button id="btn-tab-candidate" class="mode-tab" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ JoSu! Candidate</button>
             </div>
           </div>
           <button id="btn-close-modal" class="btn-close">&times;</button>
@@ -163,6 +163,7 @@
 
         <div class="canvas-wrapper">
           <canvas id="playfield-canvas"></canvas>
+          <iframe id="josu-iframe" src="" allow="autoplay; fullscreen; screen-wake-lock" style="display: none; width: 100%; height: 100%; border: 0; border-radius: 8px;"></iframe>
         </div>
 
         <div class="playback-hud">

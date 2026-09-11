@@ -42,6 +42,8 @@ const btnTabOverlay = document.getElementById('btn-tab-overlay') as HTMLButtonEl
 const btnTabTarget = document.getElementById('btn-tab-target') as HTMLButtonElement;
 const btnTabCandidate = document.getElementById('btn-tab-candidate') as HTMLButtonElement;
 const playfieldCanvas = document.getElementById('playfield-canvas') as HTMLCanvasElement;
+const josuIframe = document.getElementById('josu-iframe') as HTMLIFrameElement;
+const playbackHud = document.querySelector('.playback-hud') as HTMLElement;
 const timelineSlider = document.getElementById('timeline-slider') as HTMLInputElement;
 const timeDisplay = document.getElementById('time-display') as HTMLElement;
 const btnPlayToggle = document.getElementById('btn-play-toggle') as HTMLButtonElement;
@@ -356,8 +358,49 @@ function displayResults(target: ParsedBeatmap, setId: number, beatmapId: number,
 }
 
 function switchViewMode(mode: 'overlay' | 'target' | 'candidate') {
-  const r = getOrCreateRenderer();
-  r.setViewMode(mode);
+  if (mode === 'overlay') {
+    if (josuIframe) {
+      josuIframe.style.display = 'none';
+      josuIframe.src = 'about:blank';
+    }
+    playfieldCanvas.style.display = 'block';
+    if (playbackHud) playbackHud.style.display = 'flex';
+    if (segmentsContainer) segmentsContainer.style.display = 'flex';
+
+    const r = getOrCreateRenderer();
+    r.setViewMode('overlay');
+  } else if (mode === 'target') {
+    renderer?.pause();
+    playfieldCanvas.style.display = 'none';
+    if (playbackHud) playbackHud.style.display = 'none';
+    if (segmentsContainer) segmentsContainer.style.display = 'none';
+
+    if (josuIframe) {
+      josuIframe.style.display = 'block';
+      const targetId = currentTargetBeatmapId || currentTargetBeatmap?.metadata.beatmapId;
+      if (targetId) {
+        josuIframe.src = `https://josu.hinamizawa.ai/?b=${targetId}&fullscreen=true`;
+      } else if (currentTargetSetId) {
+        josuIframe.src = `https://josu.hinamizawa.ai/?s=${currentTargetSetId}&fullscreen=true`;
+      }
+    }
+  } else if (mode === 'candidate') {
+    renderer?.pause();
+    playfieldCanvas.style.display = 'none';
+    if (playbackHud) playbackHud.style.display = 'none';
+    if (segmentsContainer) segmentsContainer.style.display = 'none';
+
+    if (josuIframe) {
+      josuIframe.style.display = 'block';
+      const candId = currentComparisonResult?.candidateBeatmapId;
+      if (candId) {
+        josuIframe.src = `https://josu.hinamizawa.ai/?b=${candId}&fullscreen=true`;
+      } else if (currentComparisonResult?.candidateSetId) {
+        josuIframe.src = `https://josu.hinamizawa.ai/?s=${currentComparisonResult.candidateSetId}&fullscreen=true`;
+      }
+    }
+  }
+
   [btnTabOverlay, btnTabTarget, btnTabCandidate].forEach((b) => {
     if (!b) return;
     b.style.background = 'rgba(255, 255, 255, 0.08)';
@@ -509,12 +552,14 @@ document.querySelectorAll('.preset-chip').forEach((chip) => {
 // Inspector Modal Controls
 btnCloseModal.addEventListener('click', () => {
   renderer?.pause();
+  if (josuIframe) josuIframe.src = 'about:blank';
   inspectorModal.style.display = 'none';
 });
 
 inspectorModal.addEventListener('click', (e) => {
   if (e.target === inspectorModal) {
     renderer?.pause();
+    if (josuIframe) josuIframe.src = 'about:blank';
     inspectorModal.style.display = 'none';
   }
 });
