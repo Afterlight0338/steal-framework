@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "jszip": "^3.10.1",
-    "lucide": "^0.475.0"
+    "lucide": "^0.475.0",
+    "osu-beatmap-preview": "^0.3.0"
   }
 }

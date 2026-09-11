@@ -3,6 +3,7 @@ import { parseOsuFile } from './parser';
 import { extractOsz, ExtractedDifficulty } from './archive';
 import { parseOsuInput, fetchRawOsu, fetchBeatmapSetDetails, fetchBeatmapDiffDetails, searchMirror, getCoverUrl } from '../api/hinamizawa';
 import { compareBeatmaps } from './detector';
+import { isSongTitleMatch } from './matching';
 
 export interface AnalysisInput {
   urlOrId?: string;
@@ -120,17 +121,24 @@ export class StealEngine {
       message: `Searching mirror.hinamizawa.ai for ${getModeName(targetMode)} maps of "${title}" near ${targetStarRating.toFixed(1)}★...`,
       percent: 25,
     });
+    const searchHits = await searchMirror(query, 50, targetMode);
 
-    const searchHits = await searchMirror(query, 40, targetMode);
+    // Filter out target's own beatmapset and STRICTLY keep candidate sets of the same song (matching title)
+    const candidateSets = searchHits.filter(
+      (s) =>
+        s.SetID !== targetSetId &&
+        isSongTitleMatch(title, s.Title, targetBeatmap.metadata.titleUnicode, s.TitleUnicode)
+    );
 
-    // Filter out target's own beatmapset
-    const candidateSets = searchHits.filter((s) => s.SetID !== targetSetId);
-
-    // If query was very specific and returned few results, try title only
+    // If query was very specific and returned few results, try title only with same strict matching
     if (candidateSets.length < 3 && title) {
-      const titleOnlyHits = await searchMirror(title, 30, targetMode);
+      const titleOnlyHits = await searchMirror(title, 50, targetMode);
       for (const s of titleOnlyHits) {
-        if (s.SetID !== targetSetId && !candidateSets.some((existing) => existing.SetID === s.SetID)) {
+        if (
+          s.SetID !== targetSetId &&
+          isSongTitleMatch(title, s.Title, targetBeatmap.metadata.titleUnicode, s.TitleUnicode) &&
+          !candidateSets.some((existing) => existing.SetID === s.SetID)
+        ) {
           candidateSets.push(s);
         }
       }

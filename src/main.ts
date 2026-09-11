@@ -4,7 +4,7 @@ import { PlayfieldRenderer } from './core/renderer';
 import { extractOsz, ExtractedOsz } from './core/archive';
 import { ParsedBeatmap, ComparisonResult, AnalysisProgress, getModeName } from './core/types';
 import { formatTime } from './core/detector';
-import { getCoverUrl, getPreviewAudioUrl, getFullAudioUrl } from './api/hinamizawa';
+import { getCoverUrl, getPreviewAudioUrl, getFullAudioUrl, getBeatmapMirrorUrl } from './api/hinamizawa';
 
 // DOM Elements
 const mapInput = document.getElementById('map-input') as HTMLInputElement;
@@ -28,7 +28,8 @@ const statAr = document.getElementById('stat-ar') as HTMLElement;
 const statObjs = document.getElementById('stat-objs') as HTMLElement;
 const statLen = document.getElementById('stat-len') as HTMLElement;
 const audioPreview = document.getElementById('audio-preview') as HTMLAudioElement;
-const targetWebplayerLink = document.getElementById('target-webplayer-link') as HTMLAnchorElement;
+const btnTargetPlayer = document.getElementById('btn-target-player') as HTMLButtonElement;
+const targetMirrorLink = document.getElementById('target-mirror-link') as HTMLAnchorElement;
 
 const overallVerdictPill = document.getElementById('overall-verdict-pill') as HTMLElement;
 const candidateList = document.getElementById('candidate-list') as HTMLElement;
@@ -37,8 +38,9 @@ const candidateList = document.getElementById('candidate-list') as HTMLElement;
 const inspectorModal = document.getElementById('inspector-modal') as HTMLElement;
 const btnCloseModal = document.getElementById('btn-close-modal') as HTMLButtonElement;
 const modalTitle = document.getElementById('modal-title') as HTMLElement;
-const modalWebplayerTarget = document.getElementById('modal-webplayer-target') as HTMLAnchorElement;
-const modalWebplayerCand = document.getElementById('modal-webplayer-cand') as HTMLAnchorElement;
+const btnTabOverlay = document.getElementById('btn-tab-overlay') as HTMLButtonElement;
+const btnTabTarget = document.getElementById('btn-tab-target') as HTMLButtonElement;
+const btnTabCandidate = document.getElementById('btn-tab-candidate') as HTMLButtonElement;
 const playfieldCanvas = document.getElementById('playfield-canvas') as HTMLCanvasElement;
 const timelineSlider = document.getElementById('timeline-slider') as HTMLInputElement;
 const timeDisplay = document.getElementById('time-display') as HTMLElement;
@@ -58,6 +60,8 @@ const oszDiffList = document.getElementById('osz-diff-list') as HTMLElement;
 let renderer: PlayfieldRenderer | null = null;
 let currentTargetBeatmap: ParsedBeatmap | null = null;
 let currentTargetBeatmapId: number = 0;
+let currentTargetSetId: number = 0;
+let currentComparisonResult: ComparisonResult | null = null;
 let activeOszData: ExtractedOsz | null = null;
 
 // Initialize gentle default volume (20%)
@@ -241,13 +245,15 @@ function displayResults(target: ParsedBeatmap, setId: number, beatmapId: number,
   statObjs.textContent = `${target.hitObjects.length}`;
   statLen.textContent = formatTime(target.durationMs);
 
-  // Configure JoSu! / Nerinyan web player button for target
-  if (targetWebplayerLink) {
+  currentTargetSetId = setId;
+
+  // Configure mirror link for target (points strictly to Hinamizawa mirror)
+  if (targetMirrorLink) {
     if (beatmapId) {
-      targetWebplayerLink.href = `https://preview.nerinyan.moe/?b=${beatmapId}`;
-      targetWebplayerLink.style.display = 'inline';
+      targetMirrorLink.href = getBeatmapMirrorUrl(beatmapId);
+      targetMirrorLink.style.display = 'inline';
     } else {
-      targetWebplayerLink.style.display = 'none';
+      targetMirrorLink.style.display = 'none';
     }
   }
 
@@ -256,7 +262,7 @@ function displayResults(target: ParsedBeatmap, setId: number, beatmapId: number,
     audioPreview.src = target.audioBlobUrl;
     audioPreview.style.display = 'block';
   } else if (setId) {
-    // Prefer full audio stream from mirror.hinamizawa.ai so playback spans the whole song
+    // Full audio stream directly from mirror.hinamizawa.ai
     audioPreview.src = getFullAudioUrl(setId);
     audioPreview.onerror = () => {
       audioPreview.src = getPreviewAudioUrl(setId);
@@ -297,6 +303,9 @@ function displayResults(target: ParsedBeatmap, setId: number, beatmapId: number,
     return;
   }
 
+  // Cache first result as active comparison
+  currentComparisonResult = results[0];
+
   results.forEach((res) => {
     const card = document.createElement('div');
     card.className = `candidate-card ${res.overallSuspicionScore >= 50 ? 'flagged' : ''}`;
@@ -329,40 +338,81 @@ function displayResults(target: ParsedBeatmap, setId: number, beatmapId: number,
           ${res.overallSuspicionScore}%
         </div>
         <div style="display: flex; gap: 6px; align-items: center;">
-          <a href="https://preview.nerinyan.moe/?b=${res.candidateBeatmapId}" target="_blank" rel="noopener" class="btn-ctrl" style="text-decoration: none; padding: 6px 10px; font-size: 12px; color: #fb7185; border-color: rgba(244,63,94,0.3);" title="Play in JoSu! Web Player">JoSu! ↗</a>
-          <a href="https://osu.ppy.sh/b/${res.candidateBeatmapId}" target="_blank" rel="noopener" class="btn-ctrl" style="text-decoration: none; padding: 6px 10px; font-size: 12px;" title="View on osu! web">osu! ↗</a>
+          <button class="btn-inspect-solo btn-ctrl" style="padding: 6px 10px; font-size: 12px; color: #fb7185; border-color: rgba(244,63,94,0.3);" title="Play this candidate map in integrated Web Player">▶ Play</button>
+          <a href="${getBeatmapMirrorUrl(res.candidateBeatmapId)}" target="_blank" rel="noopener" class="btn-ctrl" style="text-decoration: none; padding: 6px 10px; font-size: 12px;" title="View on Hinamizawa mirror">Mirror ↗</a>
           <button class="btn-inspect">Inspect Forensics</button>
         </div>
       </div>
     `;
 
     const inspectBtn = card.querySelector('.btn-inspect') as HTMLButtonElement;
-    inspectBtn.onclick = () => openInspector(res);
+    inspectBtn.onclick = () => openInspector(res, 'overlay');
+
+    const inspectSoloBtn = card.querySelector('.btn-inspect-solo') as HTMLButtonElement;
+    inspectSoloBtn.onclick = () => openInspector(res, 'candidate');
 
     candidateList.appendChild(card);
   });
 }
 
+function switchViewMode(mode: 'overlay' | 'target' | 'candidate') {
+  const r = getOrCreateRenderer();
+  r.setViewMode(mode);
+  [btnTabOverlay, btnTabTarget, btnTabCandidate].forEach((b) => {
+    if (!b) return;
+    b.style.background = 'rgba(255, 255, 255, 0.08)';
+    b.style.color = '#cbd5e1';
+    b.style.fontWeight = 'normal';
+    b.style.border = '1px solid var(--border-subtle)';
+  });
+  const activeBtn = mode === 'overlay' ? btnTabOverlay : (mode === 'target' ? btnTabTarget : btnTabCandidate);
+  if (activeBtn) {
+    activeBtn.style.background = mode === 'candidate' ? '#fb7185' : 'var(--color-cyan)';
+    activeBtn.style.color = '#000';
+    activeBtn.style.fontWeight = '700';
+    activeBtn.style.border = 'none';
+  }
+}
+
+if (btnTabOverlay) btnTabOverlay.onclick = () => switchViewMode('overlay');
+if (btnTabTarget) btnTabTarget.onclick = () => switchViewMode('target');
+if (btnTabCandidate) btnTabCandidate.onclick = () => switchViewMode('candidate');
+
+if (btnTargetPlayer) {
+  btnTargetPlayer.onclick = () => {
+    if (!currentTargetBeatmap) return;
+    const fallbackRes: ComparisonResult = currentComparisonResult || {
+      candidateSetId: currentTargetSetId,
+      candidateBeatmapId: currentTargetBeatmapId,
+      candidateTitle: currentTargetBeatmap.metadata.title,
+      candidateArtist: currentTargetBeatmap.metadata.artist,
+      candidateCreator: currentTargetBeatmap.metadata.creator,
+      candidateVersion: currentTargetBeatmap.metadata.version,
+      candidateMode: currentTargetBeatmap.mode,
+      candidateDifficultyRating: currentTargetBeatmap.starRating,
+      candidateCoverUrl: currentTargetSetId ? getCoverUrl(currentTargetSetId) : '',
+      overallSuspicionScore: 0,
+      rhythmOverlapPercentage: 0,
+      spatialOverlapPercentage: 0,
+      sliderGeometryOverlapPercentage: 0,
+      patternStreakCount: 0,
+      longestStreak: 0,
+      verdict: 'CLEAN',
+      segments: [],
+      candidateBeatmap: currentTargetBeatmap,
+    };
+    openInspector(fallbackRes, 'target');
+  };
+}
+
 // Open Playfield Inspector Modal
-function openInspector(res: ComparisonResult) {
+function openInspector(res: ComparisonResult, initialMode: 'overlay' | 'target' | 'candidate' = 'overlay') {
   if (!currentTargetBeatmap || !res.candidateBeatmap) return;
+  currentComparisonResult = res;
 
   const r = getOrCreateRenderer();
   const candModeName = getModeName(res.candidateMode);
   modalTitle.textContent = `[${candModeName}] ${currentTargetBeatmap.metadata.version} vs ${res.candidateVersion} (${res.candidateCreator})`;
-
-  // JoSu! / Nerinyan direct web player links
-  if (modalWebplayerCand) {
-    modalWebplayerCand.href = `https://preview.nerinyan.moe/?b=${res.candidateBeatmapId}`;
-  }
-  if (modalWebplayerTarget) {
-    if (currentTargetBeatmapId) {
-      modalWebplayerTarget.href = `https://preview.nerinyan.moe/?b=${currentTargetBeatmapId}`;
-      modalWebplayerTarget.style.display = 'inline';
-    } else {
-      modalWebplayerTarget.style.display = 'none';
-    }
-  }
 
   // Populate flagged segments list
   segmentsContainer.innerHTML = '';
@@ -386,6 +436,7 @@ function openInspector(res: ComparisonResult) {
       item.onclick = () => {
         r.pause();
         btnPlayToggle.textContent = 'Play';
+        switchViewMode('overlay');
         r.setTime(Math.max(0, seg.startTime - 400));
       };
       segmentsContainer.appendChild(item);
@@ -400,6 +451,7 @@ function openInspector(res: ComparisonResult) {
     r.handleResize();
     r.setAudio(audioPreview);
     r.setMaps(currentTargetBeatmap, res.candidateBeatmap, res.segments);
+    switchViewMode(initialMode);
     btnPlayToggle.textContent = 'Play';
   });
 }

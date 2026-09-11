@@ -1,4 +1,7 @@
 import { ParsedBeatmap, HitObject, MatchSegment } from './types';
+import { StandardBeatmapPreviewer } from 'osu-beatmap-preview';
+
+export type PlayfieldViewMode = 'overlay' | 'target' | 'candidate';
 
 export class PlayfieldRenderer {
   private canvas: HTMLCanvasElement;
@@ -6,6 +9,10 @@ export class PlayfieldRenderer {
   private targetMap: ParsedBeatmap | null = null;
   private candidateMap: ParsedBeatmap | null = null;
   private segments: MatchSegment[] = [];
+
+  private viewMode: PlayfieldViewMode = 'overlay';
+  private targetPreviewer: StandardBeatmapPreviewer | null = null;
+  private candidatePreviewer: StandardBeatmapPreviewer | null = null;
 
   private currentTime = 0;
   private approachTime = 600; // AR preview window
@@ -25,6 +32,16 @@ export class PlayfieldRenderer {
     this.handleResize();
   }
 
+  public setViewMode(mode: PlayfieldViewMode) {
+    this.viewMode = mode;
+    this.handleResize();
+    this.render();
+  }
+
+  public getViewMode(): PlayfieldViewMode {
+    return this.viewMode;
+  }
+
   public setAudio(audio: HTMLAudioElement | null) {
     this.audioElement = audio;
     if (this.audioElement) {
@@ -37,6 +54,40 @@ export class PlayfieldRenderer {
     this.targetMap = target || null;
     this.candidateMap = candidate || null;
     this.segments = segments;
+
+    // Dispose previous standalone previewers if any
+    try {
+      this.targetPreviewer?.dispose();
+    } catch (_) {}
+    this.targetPreviewer = null;
+
+    try {
+      this.candidatePreviewer?.dispose();
+    } catch (_) {}
+    this.candidatePreviewer = null;
+
+    // Initialize in-browser osu web previewers for standard osu! maps
+    if (this.targetMap?.rawText && this.targetMap.mode === 0) {
+      try {
+        this.targetPreviewer = new StandardBeatmapPreviewer(this.canvas, {
+          useBeatmapPreviewTime: false,
+        });
+        this.targetPreviewer.loadBeatmapText(this.targetMap.rawText);
+      } catch (err) {
+        console.warn('Could not initialize target standard previewer:', err);
+      }
+    }
+
+    if (this.candidateMap?.rawText && this.candidateMap.mode === 0) {
+      try {
+        this.candidatePreviewer = new StandardBeatmapPreviewer(this.canvas, {
+          useBeatmapPreviewTime: false,
+        });
+        this.candidatePreviewer.loadBeatmapText(this.candidateMap.rawText);
+      } catch (err) {
+        console.warn('Could not initialize candidate standard previewer:', err);
+      }
+    }
 
     if (segments && segments.length > 0) {
       this.currentTime = Math.max(0, segments[0].startTime - 400);
@@ -186,11 +237,93 @@ export class PlayfieldRenderer {
     const dpr = window.devicePixelRatio || 1;
     this.canvas.width = Math.round(w * dpr);
     this.canvas.height = Math.round(h * dpr);
+
+    if (this.targetPreviewer) {
+      try {
+        this.targetPreviewer.resize(w, h, dpr);
+      } catch (_) {}
+    }
+    if (this.candidatePreviewer) {
+      try {
+        this.candidatePreviewer.resize(w, h, dpr);
+      } catch (_) {}
+    }
+
     this.render();
   }
 
   public render() {
+    if (this.viewMode === 'target') {
+      if (this.targetPreviewer) {
+        try {
+          this.targetPreviewer.render(this.currentTime);
+          return;
+        } catch (e) {
+          console.warn('Target previewer error, falling back:', e);
+        }
+      } else if (this.targetMap) {
+        this.renderSingleMap(this.targetMap, '#06b6d4', 'rgba(6, 182, 212, 0.25)');
+        return;
+      }
+    }
+
+    if (this.viewMode === 'candidate') {
+      if (this.candidatePreviewer) {
+        try {
+          this.candidatePreviewer.render(this.currentTime);
+          return;
+        } catch (e) {
+          console.warn('Candidate previewer error, falling back:', e);
+        }
+      } else if (this.candidateMap) {
+        this.renderSingleMap(this.candidateMap, '#f43f5e', 'rgba(244, 63, 94, 0.25)');
+        return;
+      }
+    }
+
+    // Default: Dual forensic comparison overlay
+    this.renderOverlay();
+  }
+
+  private renderSingleMap(map: ParsedBeatmap, primaryColor: string, fillColor: string) {
     const ctx = this.ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+
+    ctx.fillStyle = '#060a14';
+    ctx.fillRect(0, 0, width, height);
+
+    const osuW = 512;
+    const osuH = 384;
+    const scale = Math.min((width * 0.9) / osuW, (height * 0.9) / osuH);
+    const offsetX = (width - osuW * scale) / 2;
+    const offsetY = (height - osuH * scale) / 2;
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 2 / scale;
+    ctx.strokeRect(0, 0, osuW, osuH);
+
+    if (map.mode === 1) {
+      this.renderTaikoNotes(ctx, map, primaryColor, 192, 100, osuW);
+    } else if (map.mode === 2) {
+      this.renderCatchFruits(ctx, map, primaryColor, 340);
+    } else if (map.mode === 3) {
+      this.renderManiaNotes(ctx, map, primaryColor, (osuW - 256) / 2, 64, 330);
+    } else {
+      this.renderStandardObjects(ctx, map, primaryColor, fillColor, 32, scale);
+    }
+
+    ctx.restore();
+  }
+
+  private renderOverlay() {
+    const ctx = this.ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     const width = this.canvas.width;
     const height = this.canvas.height;
 

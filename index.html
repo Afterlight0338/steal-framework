@@ -117,8 +117,11 @@
 
           <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 12px; color: var(--color-text-muted);">Audio (Default 20% vol)</span>
-              <a id="target-webplayer-link" href="#" target="_blank" rel="noopener" style="font-size: 12px; color: var(--color-cyan); text-decoration: none; display: none;" title="Open in JoSu! Web Beatmap Player">Play in JoSu! Web Player ↗</a>
+              <span style="font-size: 12px; color: var(--color-text-muted);">Audio (Hinamizawa Stream)</span>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button id="btn-target-player" class="btn-ctrl" style="padding: 4px 8px; font-size: 11px; color: var(--color-cyan); border-color: rgba(6,182,212,0.3);">▶ Web Player</button>
+                <a id="target-mirror-link" href="#" target="_blank" rel="noopener" style="font-size: 11px; color: var(--color-text-muted); text-decoration: none; display: none;" title="View on Hinamizawa mirror">Mirror ↗</a>
+              </div>
             </div>
             <audio id="audio-preview" controls style="width: 100%; height: 36px; border-radius: 8px;"></audio>
           </div>
@@ -148,10 +151,11 @@
       <div class="modal-card">
         <div class="modal-header">
           <div>
-            <h3 id="modal-title" style="margin-bottom: 4px;">Visual Forensic Playfield Overlay</h3>
-            <div id="modal-external-links" style="display: flex; gap: 14px; font-size: 12px; margin-top: 2px;">
-              <a id="modal-webplayer-target" href="#" target="_blank" rel="noopener" style="color: var(--color-cyan); text-decoration: none;">▶ Target in Web Player ↗</a>
-              <a id="modal-webplayer-cand" href="#" target="_blank" rel="noopener" style="color: #fb7185; text-decoration: none;">▶ Candidate in Web Player ↗</a>
+            <h3 id="modal-title" style="margin-bottom: 6px;">Visual Forensic Playfield Overlay</h3>
+            <div class="view-mode-tabs" style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button id="btn-tab-overlay" class="mode-tab active" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: var(--color-cyan); color: #000; font-weight: 700; border: none;">🔬 Forensic Overlay</button>
+              <button id="btn-tab-target" class="mode-tab" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ Play Target Map</button>
+              <button id="btn-tab-candidate" class="mode-tab" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; background: rgba(255, 255, 255, 0.08); color: #cbd5e1; border: 1px solid var(--border-subtle);">▶ Play Candidate Map</button>
             </div>
           </div>
           <button id="btn-close-modal" class="btn-close">&times;</button>

@@ -239,11 +239,15 @@ export function getCoverUrl(setId: number): string {
 }
 
 export function getPreviewAudioUrl(setId: number): string {
-  // Returns direct MP3 preview audio stream (b.ppy.sh / catboy)
-  return `https://b.ppy.sh/preview/${setId}.mp3`;
+  // Self-hosted audio directly from Hinamizawa mirror (zero external dependencies)
+  return `${BASE_URL}/v3/osu/music/audio/${setId}`;
 }
 
 export function getFullAudioUrl(setId: number): string {
-  // Returns full music audio stream from Hinamizawa's 67,000+ song archive
+  // Self-hosted audio directly from Hinamizawa mirror
   return `${BASE_URL}/v3/osu/music/audio/${setId}`;
+}
+
+export function getBeatmapMirrorUrl(beatmapId: number): string {
+  return `${BASE_URL}/b/${beatmapId}`;
 }
