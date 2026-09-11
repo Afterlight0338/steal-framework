@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && rm -rf /tmp/steal-pages && mkdir -p /tmp/steal-pages && cp -r dist/* /tmp/steal-pages/ && cp dist/CNAME /tmp/steal-pages/ && touch /tmp/steal-pages/.nojekyll && git -C /tmp/steal-pages init && git -C /tmp/steal-pages config user.name 'Afterlight' && git -C /tmp/steal-pages config user.email 'afterlight@users.noreply.github.com' && git -C /tmp/steal-pages remote add origin https://github.com/Afterlight0338/steal-framework.git && git -C /tmp/steal-pages checkout -b gh-pages && git -C /tmp/steal-pages add -A && git -C /tmp/steal-pages commit -m 'deploy: publish steal.vivlos.dev' && git -C /tmp/steal-pages push origin gh-pages --force && rm -rf /tmp/steal-pages"
   },
   "repository": {
     "type": "git",
