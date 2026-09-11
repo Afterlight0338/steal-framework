@@ -376,8 +376,8 @@ function switchViewMode(mode: 'split' | 'overlay' | 'target' | 'candidate') {
   if (mode === 'split') {
     viewSplit.style.display = 'flex';
     viewOverlay.style.display = 'none';
-    const targetCard = viewSplit.querySelector('.target-card') as HTMLElement;
-    const candidateCard = viewSplit.querySelector('.candidate-card') as HTMLElement;
+    const targetCard = viewSplit.querySelector('.playfield-target') as HTMLElement;
+    const candidateCard = viewSplit.querySelector('.playfield-suspect') as HTMLElement;
     if (targetCard) targetCard.style.display = 'flex';
     if (candidateCard) candidateCard.style.display = 'flex';
   } else if (mode === 'overlay') {
@@ -386,15 +386,15 @@ function switchViewMode(mode: 'split' | 'overlay' | 'target' | 'candidate') {
   } else if (mode === 'target') {
     viewSplit.style.display = 'flex';
     viewOverlay.style.display = 'none';
-    const targetCard = viewSplit.querySelector('.target-card') as HTMLElement;
-    const candidateCard = viewSplit.querySelector('.candidate-card') as HTMLElement;
+    const targetCard = viewSplit.querySelector('.playfield-target') as HTMLElement;
+    const candidateCard = viewSplit.querySelector('.playfield-suspect') as HTMLElement;
     if (targetCard) targetCard.style.display = 'flex';
     if (candidateCard) candidateCard.style.display = 'none';
   } else if (mode === 'candidate') {
     viewSplit.style.display = 'flex';
     viewOverlay.style.display = 'none';
-    const targetCard = viewSplit.querySelector('.target-card') as HTMLElement;
-    const candidateCard = viewSplit.querySelector('.candidate-card') as HTMLElement;
+    const targetCard = viewSplit.querySelector('.playfield-target') as HTMLElement;
+    const candidateCard = viewSplit.querySelector('.playfield-suspect') as HTMLElement;
     if (targetCard) targetCard.style.display = 'none';
     if (candidateCard) candidateCard.style.display = 'flex';
   }

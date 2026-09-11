@@ -692,19 +692,21 @@ body::before {
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
-.target-card {
+.playfield-target {
   border-color: rgba(6, 182, 212, 0.35);
 }
 
-.candidate-card {
+.playfield-suspect {
   border-color: rgba(244, 63, 94, 0.35);
 }
 
-.overlay-card {
+.playfield-overlay {
   border-color: rgba(16, 185, 129, 0.35);
 }
 
