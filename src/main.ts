@@ -468,6 +468,7 @@ async function openInspector(
 
   // Display modal immediately with loading overlay to prevent jitter
   inspectorModal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
   if (modalLoadingOverlay) modalLoadingOverlay.style.display = 'flex';
 
   const candModeName = getModeName(res.candidateMode);
@@ -623,15 +624,23 @@ document.querySelectorAll('.preset-chip').forEach((chip) => {
 });
 
 // Inspector Modal Controls
-btnCloseModal.addEventListener('click', () => {
+function closeInspector() {
   renderer?.pause();
   inspectorModal.style.display = 'none';
-});
+  document.body.style.overflow = '';
+}
+
+btnCloseModal.addEventListener('click', closeInspector);
 
 inspectorModal.addEventListener('click', (e) => {
   if (e.target === inspectorModal) {
-    renderer?.pause();
-    inspectorModal.style.display = 'none';
+    closeInspector();
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && inspectorModal.style.display === 'flex') {
+    closeInspector();
   }
 });
 

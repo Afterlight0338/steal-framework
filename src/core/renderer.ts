@@ -1,4 +1,4 @@
-import { ParsedBeatmap, HitObject, MatchSegment, CurvePoint } from './types';
+import { ParsedBeatmap, HitObject, MatchSegment } from './types';
 
 export type PlayfieldViewMode = 'split' | 'overlay' | 'target' | 'candidate';
 
@@ -251,7 +251,7 @@ export class PlayfieldRenderer {
         }
       }
       if (!w) w = 480;
-      if (!h) h = 320;
+      if (!h) h = 300;
 
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const targetW = Math.round(w * dpr);
@@ -281,17 +281,13 @@ export class PlayfieldRenderer {
         this.targetCtx,
         this.canvases.targetCanvas,
         this.targetMap,
-        '#06b6d4',
-        'rgba(6, 182, 212, 0.35)',
-        'TARGET'
+        '#06b6d4'
       );
       this.renderPlayfield(
         this.candidateCtx,
         this.canvases.candidateCanvas,
         this.candidateMap,
-        '#f43f5e',
-        'rgba(244, 63, 94, 0.35)',
-        'SUSPECT'
+        '#f43f5e'
       );
     } else if (this.viewMode === 'overlay') {
       this.renderDualOverlay(this.overlayCtx, this.canvases.overlayCanvas);
@@ -300,18 +296,14 @@ export class PlayfieldRenderer {
         this.targetCtx,
         this.canvases.targetCanvas,
         this.targetMap,
-        '#06b6d4',
-        'rgba(6, 182, 212, 0.35)',
-        'TARGET'
+        '#06b6d4'
       );
     } else if (this.viewMode === 'candidate') {
       this.renderPlayfield(
         this.candidateCtx,
         this.canvases.candidateCanvas,
         this.candidateMap,
-        '#f43f5e',
-        'rgba(244, 63, 94, 0.35)',
-        'SUSPECT'
+        '#f43f5e'
       );
     }
   }
@@ -321,9 +313,7 @@ export class PlayfieldRenderer {
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement,
     map: ParsedBeatmap | null,
-    primaryColor: string,
-    fillColor: string,
-    badgeText: string
+    primaryColor: string
   ) {
     const width = canvas.width;
     const height = canvas.height;
@@ -344,7 +334,7 @@ export class PlayfieldRenderer {
 
     const osuW = 512;
     const osuH = 384;
-    const scale = Math.min((width * 0.9) / osuW, (height * 0.88) / osuH);
+    const scale = Math.min((width * 0.92) / osuW, (height * 0.9) / osuH);
     const offsetX = (width - osuW * scale) / 2;
     const offsetY = (height - osuH * scale) / 2;
 
@@ -361,7 +351,7 @@ export class PlayfieldRenderer {
     ctx.shadowBlur = 0;
 
     // Playfield subtle coordinate grid
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
     ctx.lineWidth = 1 / scale;
     ctx.beginPath();
     ctx.moveTo(256, 0); ctx.lineTo(256, 384);
@@ -376,17 +366,9 @@ export class PlayfieldRenderer {
     } else if (map.mode === 3) {
       this.renderManiaNotes(ctx, map, primaryColor, (osuW - 256) / 2, 64, 330);
     } else {
-      this.renderStandardObjects(ctx, map, primaryColor, fillColor, scale);
+      this.renderStandardObjects(ctx, map, primaryColor, scale);
     }
 
-    ctx.restore();
-
-    // Corner badge
-    ctx.save();
-    ctx.font = 'bold 11px monospace';
-    ctx.fillStyle = primaryColor;
-    ctx.textAlign = 'left';
-    ctx.fillText(`${badgeText} • ${map.metadata.version}`, 12, 18);
     ctx.restore();
   }
 
@@ -402,7 +384,7 @@ export class PlayfieldRenderer {
 
     const osuW = 512;
     const osuH = 384;
-    const scale = Math.min((width * 0.92) / osuW, (height * 0.9) / osuH);
+    const scale = Math.min((width * 0.93) / osuW, (height * 0.9) / osuH);
     const offsetX = (width - osuW * scale) / 2;
     const offsetY = (height - osuH * scale) / 2;
 
@@ -416,7 +398,7 @@ export class PlayfieldRenderer {
     ctx.strokeRect(0, 0, osuW, osuH);
 
     // Center cross
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
     ctx.lineWidth = 1 / scale;
     ctx.beginPath();
     ctx.moveTo(256, 0); ctx.lineTo(256, 384);
@@ -436,26 +418,24 @@ export class PlayfieldRenderer {
       if (this.candidateMap) this.renderManiaNotes(ctx, this.candidateMap, '#f43f5e', (osuW - 256) / 2, 64, 330);
       if (this.targetMap) this.renderManiaNotes(ctx, this.targetMap, '#06b6d4', (osuW - 256) / 2, 64, 330);
     } else {
-      // Standard osu! Dual Overlay
+      // Standard osu! Dual Overlay: Suspect rendered in Rose, Target in Cyan
       if (this.candidateMap) {
-        this.renderStandardObjects(ctx, this.candidateMap, '#f43f5e', 'rgba(244, 63, 94, 0.3)', scale, true);
+        this.renderStandardObjects(ctx, this.candidateMap, '#f43f5e', scale);
       }
       if (this.targetMap) {
-        this.renderStandardObjects(ctx, this.targetMap, '#06b6d4', 'rgba(6, 182, 212, 0.3)', scale, false);
+        this.renderStandardObjects(ctx, this.targetMap, '#06b6d4', scale);
       }
     }
 
     ctx.restore();
   }
 
-  // Standard osu! objects rendering (Circles with readable combo numbers, Sliders with animated balls, Stolen highlights)
+  // Standard osu! objects rendering (Crisp solid circles, combo numbers, single active approach circle, glowing stolen highlights)
   private renderStandardObjects(
     ctx: CanvasRenderingContext2D,
     map: ParsedBeatmap,
     primaryColor: string,
-    fillColor: string,
-    scale: number,
-    isCandidateOverlay = false
+    scale: number
   ) {
     const objs = map.hitObjects;
     const now = this.currentTime;
@@ -463,19 +443,41 @@ export class PlayfieldRenderer {
     const cs = map.difficulty?.cs ?? 4;
     const circleRadius = Math.max(16, Math.min(48, 54.4 - 4.48 * cs));
 
+    // Find the single earliest upcoming object to draw the approach circle for
+    let nearestUpcomingObj: HitObject | null = null;
+    let minUpcomingDiff = Infinity;
+
+    for (let i = 0; i < objs.length; i++) {
+      const obj = objs[i];
+      if (obj.time >= now) {
+        const diff = obj.time - now;
+        if (diff < minUpcomingDiff) {
+          minUpcomingDiff = diff;
+          nearestUpcomingObj = obj;
+        }
+        if (diff > arWindow) break;
+      }
+    }
+
+    // Draw objects in reverse order (future objects drawn first, closest object drawn last on top)
     for (let i = objs.length - 1; i >= 0; i--) {
       const obj = objs[i];
       if (obj.time > now + arWindow) continue;
-      if (obj.endTime < now - 140) continue;
+      if (obj.endTime < now - 90) continue;
 
       const timeUntilHit = obj.time - now;
-      const progress = 1 - Math.max(0, timeUntilHit) / arWindow;
-
       let alpha = 1.0;
+      let hitExpand = 1.0;
+
       if (timeUntilHit < 0) {
-        alpha = Math.max(0, 1 - Math.abs(timeUntilHit) / 140);
+        // Hit passed: fast crisp fade out over 90ms
+        const hitProgress = Math.min(1, Math.abs(timeUntilHit) / 90);
+        alpha = 1 - hitProgress;
+        hitExpand = 1 + hitProgress * 0.2;
       } else {
-        alpha = Math.min(1, progress * 1.6);
+        // Fade in smoothly when spawning
+        const fadeInProgress = Math.min(1, (arWindow - timeUntilHit) / Math.min(180, arWindow * 0.35));
+        alpha = fadeInProgress;
       }
 
       ctx.save();
@@ -487,10 +489,10 @@ export class PlayfieldRenderer {
 
         // Slider track body
         ctx.strokeStyle = primaryColor;
-        ctx.lineWidth = circleRadius * 1.8;
+        ctx.lineWidth = circleRadius * 1.75;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.globalAlpha = alpha * 0.35;
+        ctx.globalAlpha = alpha * 0.38;
 
         ctx.beginPath();
         ctx.moveTo(pts[0].x, pts[0].y);
@@ -499,17 +501,26 @@ export class PlayfieldRenderer {
         }
         ctx.stroke();
 
-        // Slider inner track border
-        ctx.lineWidth = 3 / scale;
-        ctx.globalAlpha = alpha * 0.9;
+        // Inner solid track core
+        ctx.strokeStyle = '#050a16';
+        ctx.lineWidth = (circleRadius * 1.75) - (6 / scale);
+        ctx.globalAlpha = alpha * 0.85;
+        ctx.stroke();
+
+        // Slider outline
+        ctx.strokeStyle = primaryColor;
+        ctx.lineWidth = 2.5 / scale;
+        ctx.globalAlpha = alpha;
         ctx.stroke();
 
         // Slider tail circle
         const lastPt = pts[pts.length - 1];
         ctx.beginPath();
-        ctx.arc(lastPt.x, lastPt.y, circleRadius * 0.8, 0, Math.PI * 2);
+        ctx.arc(lastPt.x, lastPt.y, circleRadius * 0.75, 0, Math.PI * 2);
+        ctx.fillStyle = '#060d1b';
+        ctx.fill();
         ctx.strokeStyle = primaryColor;
-        ctx.lineWidth = 2 / scale;
+        ctx.lineWidth = 2.5 / scale;
         ctx.stroke();
 
         // Animated Slider Ball if active
@@ -527,15 +538,15 @@ export class PlayfieldRenderer {
           if (ballPt) {
             // Pulsing follow circle
             ctx.beginPath();
-            ctx.arc(ballPt.x, ballPt.y, circleRadius * 1.3, 0, Math.PI * 2);
+            ctx.arc(ballPt.x, ballPt.y, circleRadius * 1.25, 0, Math.PI * 2);
             ctx.strokeStyle = primaryColor;
             ctx.lineWidth = 2 / scale;
-            ctx.globalAlpha = alpha * 0.6;
+            ctx.globalAlpha = alpha * 0.7;
             ctx.stroke();
 
             // Ball center
             ctx.beginPath();
-            ctx.arc(ballPt.x, ballPt.y, circleRadius * 0.65, 0, Math.PI * 2);
+            ctx.arc(ballPt.x, ballPt.y, circleRadius * 0.6, 0, Math.PI * 2);
             ctx.fillStyle = '#ffffff';
             ctx.globalAlpha = alpha;
             ctx.fill();
@@ -546,48 +557,53 @@ export class PlayfieldRenderer {
         }
       }
 
-      // Draw Hit Circle Body
-      ctx.globalAlpha = alpha;
+      // Draw Hit Circle Body (100% Solid Opaque Backing so notes stack cleanly!)
+      const curRadius = circleRadius * hitExpand;
 
-      // Check if note is flagged as copied/stolen
+      // Glowing indicator if flagged as stolen/plagiarized
       if (obj.isFlagged) {
-        // High-visibility glowing Emerald Green indicator ring
         ctx.save();
         ctx.shadowColor = '#10b981';
-        ctx.shadowBlur = 14;
+        ctx.shadowBlur = 12;
         ctx.strokeStyle = '#10b981';
-        ctx.lineWidth = 5 / scale;
+        ctx.lineWidth = 4.5 / scale;
         ctx.beginPath();
-        ctx.arc(obj.x, obj.y, circleRadius + 4, 0, Math.PI * 2);
+        ctx.arc(obj.x, obj.y, curRadius + 4, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
 
-      // Circle dark solid interior for crisp contrast
+      // 1. Solid opaque core (covers underlying notes in stream/stack)
       ctx.beginPath();
-      ctx.arc(obj.x, obj.y, circleRadius, 0, Math.PI * 2);
-      ctx.fillStyle = '#080c18';
+      ctx.arc(obj.x, obj.y, curRadius, 0, Math.PI * 2);
+      ctx.fillStyle = obj.isFlagged ? '#04281c' : (primaryColor === '#06b6d4' ? '#04212f' : '#2b0713');
       ctx.fill();
 
-      // Colored rim
-      ctx.fillStyle = fillColor;
-      ctx.fill();
-      ctx.lineWidth = (obj.isFlagged ? 4 : 3.5) / scale;
+      // 2. Crisp colored outer ring
       ctx.strokeStyle = obj.isFlagged ? '#10b981' : primaryColor;
+      ctx.lineWidth = (obj.isFlagged ? 4 : 3.5) / scale;
       ctx.stroke();
 
-      // Combo Number (Authentic osu! readable number)
+      // 3. Subtle inner highlight bevel
+      ctx.beginPath();
+      ctx.arc(obj.x, obj.y, Math.max(2, curRadius - (4 / scale)), 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1.2 / scale;
+      ctx.stroke();
+
+      // 4. Bold white Combo Number
       const comboNum = obj.comboNumber ?? 1;
-      const fontSize = Math.round(circleRadius * 0.82);
-      ctx.font = `bold ${fontSize}px sans-serif`;
+      const fontSize = Math.round(curRadius * 0.85);
+      ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(comboNum), obj.x, obj.y + 1);
 
-      // Approach Circle
-      if (timeUntilHit > 0) {
-        const approachRadius = circleRadius + circleRadius * 1.9 * (1 - progress);
+      // 5. Approach Circle (ONLY drawn for the single active upcoming note!)
+      if (obj === nearestUpcomingObj && timeUntilHit > 0) {
+        const progress = 1 - Math.max(0, timeUntilHit) / arWindow;
+        const approachRadius = circleRadius + circleRadius * 2.0 * (1 - progress);
         ctx.beginPath();
         ctx.arc(obj.x, obj.y, Math.max(circleRadius, approachRadius), 0, Math.PI * 2);
         ctx.lineWidth = 2.5 / scale;
